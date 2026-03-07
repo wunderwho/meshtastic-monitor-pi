@@ -1,44 +1,45 @@
+#!/usr/bin/env python3
+
 import time
 import subprocess
 import os
+import json
 import board
 import busio
 from adafruit_ina219 import INA219
+from datetime import datetime
+from statistics import mean
 
 BASE_PATH = "{{ monitor_home }}"
-LOG_FILE = os.path.join(BASE_PATH, "ups.log")
-UPS_INTERVAL = {{ telemetry_interval }}
 
-FULL_VOLTAGE = 12.6
-EMPTY_VOLTAGE = 9.6
-SHUTDOWN_VOLTAGE = 9.8
-WARN_VOLTAGE = 10.2
+JSON_LOG = os.path.join(BASE_PATH, "ups.json")
+TEXT_LOG = os.path.join(BASE_PATH, "ups.log")
+
+UPS_INTERVAL = {{ ups_log_interval | default(60) }}
+
 PACK_CAPACITY_WH = 33.0
-ASSUMED_LOAD_WATTS = 1.2
+WARN_VOLTAGE = 10.2
+SHUTDOWN_VOLTAGE = 9.8
+
+ROLLING_SAMPLES = 20
+
+power_samples = []
+
+on_battery = False
+outage_start = None
+
+energy_used_wh = 0.0
+last_ts = time.time()
 
 
-def log_line(line):
-    with open(LOG_FILE, "a") as f:
+def log_json(data):
+    with open(JSON_LOG, "a") as f:
+        f.write(json.dumps(data) + "\n")
+
+
+def log_text(line):
+    with open(TEXT_LOG, "a") as f:
         f.write(line + "\n")
-
-
-def watchdog_ping():
-    if "WATCHDOG_USEC" in os.environ:
-        subprocess.run(["systemd-notify", "WATCHDOG=1"])
-
-
-def estimate_percentage(voltage):
-    pct = (voltage - EMPTY_VOLTAGE) / (FULL_VOLTAGE - EMPTY_VOLTAGE) * 100
-    pct = max(0, min(100, pct))
-    return pct
-
-
-def capacity_wh_from_pct(pct):
-    return PACK_CAPACITY_WH * (pct / 100.0)
-
-
-def runtime_minutes(remaining_wh):
-    return (remaining_wh / ASSUMED_LOAD_WATTS) * 60
 
 
 def find_ups_bus():
@@ -64,52 +65,91 @@ while bus is None:
     if bus is None:
         time.sleep(5)
 
-log_line(f"{int(time.time())},info=ups_detected,bus={bus}")
-
 i2c = busio.I2C(board.SCL, board.SDA)
 ina219 = INA219(i2c, addr=0x41)
+
+log_text(f"{datetime.now().isoformat()} UPS detected on I2C bus {bus}")
 
 shutdown_triggered = False
 
 while True:
     try:
-        voltage = ina219.bus_voltage
-        current = ina219.current
+        ts = time.time()
 
-        pct = estimate_percentage(voltage)
-        remaining_wh = capacity_wh_from_pct(pct)
+        voltage = float(ina219.bus_voltage)
+        current_ma = float(ina219.current)
 
-        runtime_empty = runtime_minutes(remaining_wh)
+        current_a = current_ma / 1000.0
+        power_w = voltage * current_a
 
-        shutdown_pct = estimate_percentage(SHUTDOWN_VOLTAGE)
-        shutdown_wh = capacity_wh_from_pct(shutdown_pct)
+        if current_a < -0.05 and not on_battery:
+            on_battery = True
+            outage_start = ts
+            energy_used_wh = 0.0
+            power_samples = []
+            log_text(f"{datetime.now().isoformat()} POWER_LOST")
 
-        usable_wh = max(0, remaining_wh - shutdown_wh)
-        runtime_shutdown = runtime_minutes(usable_wh)
+        if current_a > 0.05 and on_battery:
+            on_battery = False
+            duration = ts - outage_start if outage_start else 0
+            log_text(f"{datetime.now().isoformat()} POWER_RESTORED outage_seconds={int(duration)}")
+            outage_start = None
+            energy_used_wh = 0.0
+            power_samples = []
 
-        ts = int(time.time())
+        if on_battery and abs(power_w) > 0:
+            power_samples.append(abs(power_w))
 
-        log_line(
-            f"{ts},"
-            f"voltage={voltage:.3f},"
-            f"current={current:.3f},"
-            f"battery_pct={pct:.1f},"
-            f"capacity_wh={remaining_wh:.2f},"
-            f"runtime_to_empty_min={runtime_empty:.1f},"
-            f"runtime_to_shutdown_min={runtime_shutdown:.1f}"
+        if len(power_samples) > ROLLING_SAMPLES:
+            power_samples.pop(0)
+
+        avg_power = mean(power_samples) if power_samples else 0
+
+        runtime_hr = 0
+        remaining_wh = PACK_CAPACITY_WH
+
+        if on_battery:
+            elapsed_hr = (ts - last_ts) / 3600
+            energy_used_wh += abs(power_w) * elapsed_hr
+            remaining_wh = max(PACK_CAPACITY_WH - energy_used_wh, 0)
+            runtime_hr = remaining_wh / avg_power if avg_power > 0 else 0
+
+        last_ts = ts
+
+        json_data = {
+            "ts": int(ts),
+            "voltage_v": round(voltage, 3),
+            "current_a": round(current_a, 3),
+            "power_w": round(power_w, 3),
+            "avg_power_w": round(avg_power, 3),
+            "remaining_wh": round(remaining_wh, 3),
+            "runtime_hours": round(runtime_hr, 2),
+            "on_battery": on_battery
+        }
+
+        log_json(json_data)
+
+        human_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        log_text(
+            f"{human_time} | "
+            f"{voltage:.3f}V "
+            f"{current_a:.3f}A "
+            f"{power_w:.2f}W "
+            f"avg:{avg_power:.2f}W "
+            f"runtime:{runtime_hr:.2f}h "
+            f"battery:{on_battery}"
         )
 
         if voltage <= WARN_VOLTAGE:
-            log_line(f"{ts},warning=low_voltage,voltage={voltage:.3f}")
+            log_text(f"{human_time} WARNING low voltage {voltage:.2f}V")
 
         if voltage <= SHUTDOWN_VOLTAGE and not shutdown_triggered:
-            log_line(f"{ts},critical=shutdown_triggered,voltage={voltage:.3f}")
+            log_text(f"{human_time} CRITICAL shutdown triggered")
             shutdown_triggered = True
             subprocess.run(["sudo", "shutdown", "-h", "now"])
 
-        watchdog_ping()
-
     except Exception as e:
-        log_line(f"{int(time.time())},error={str(e)}")
+        log_text(f"{datetime.now().isoformat()} ERROR {str(e)}")
 
     time.sleep(UPS_INTERVAL)
