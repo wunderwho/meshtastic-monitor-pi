@@ -2,7 +2,7 @@
 meshtastic_connection: serial
 
 ## FOR TCP CONNECTIONS
-#meshtastic_host: 10.254.254.230
+#meshtastic_host: NODE_IP
 #meshtastic_port: unused
 
 ## VARIOUS SERIAL CONNECTIONS
@@ -10,14 +10,6 @@ meshtastic_connection: serial
 #meshtastic_port: /dev/serial0
 meshtastic_port: /dev/ttyACM0
 
-## wun1 heltec v4
-#meshtastic_port: /dev/serial/by-id/usb-Espressif_Systems_heltec_wifi_lora_32_v4__16_MB_FLASH__2_MB_PSRAM__90706984996C-if00
 
-## wun7 heltec v3
-#local_node_id: "!0407d858"
-
-## wun1 heltec v4
-#local_node_id: "!6984996c"
-
-## wunG heltec v4
+## Monitored node information
 local_node_id: "!49b44a44"
