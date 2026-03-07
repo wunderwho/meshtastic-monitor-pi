@@ -1,0 +1,137 @@
+MESHTASTIC MONITOR – COMMAND CHEAT SHEET
+
+Meshtastic CLI manual:
+https://meshtastic.org/docs/software/python/cli/
+
+==================================================
+LOG FILE LOCATIONS
+==================================================
+
+Main mesh activity log (human readable)
+
+~/mesh.log
+
+Structured telemetry log (JSON for local node)
+
+~/telemetry.log
+
+Environment telemetry log
+
+~/environment.log
+
+Position telemetry log
+
+~/position.log
+
+Device telemetry log
+
+~/device.log
+
+UPS power monitoring log
+
+~/ups.log
+
+
+==================================================
+LIVE VIEWING
+==================================================
+
+Live view of mesh activity
+
+tail -f ~/mesh.log
+
+Show last 50 lines of mesh activity
+
+tail -n 50 ~/mesh.log
+
+Live view of telemetry JSON (raw)
+
+tail -f ~/telemetry.log
+
+Pretty-print telemetry JSON (requires jq)
+
+tail -f ~/telemetry.log | jq .
+
+Show only telemetry entries (live)
+
+tail -f ~/telemetry.log | jq 'select(.type=="telemetry")'
+
+Show battery and voltage values (live)
+
+tail -f ~/telemetry.log | jq 'select(.type=="telemetry") | {ts, battery, voltage}'
+
+Show position updates only (live)
+
+tail -f ~/telemetry.log | jq 'select(.type=="position")'
+
+Show node information updates only (live)
+
+tail -f ~/telemetry.log | jq 'select(.type=="nodeinfo")'
+
+
+==================================================
+FILTERING
+==================================================
+
+Filter mesh log for a short node ID
+
+grep NODEID ~/mesh.log
+
+Live filter mesh log for a short node ID
+
+tail -f ~/mesh.log | grep NODEID
+
+Filter telemetry for a full node ID
+
+jq 'select(.node_id=="!NODEID")' ~/telemetry.log
+
+
+==================================================
+SERVICE CONTROL
+==================================================
+
+Check monitor service status
+
+sudo systemctl status meshtastic-monitor
+
+Restart monitor service
+
+sudo systemctl restart meshtastic-monitor
+
+Stop monitor service
+
+sudo systemctl stop meshtastic-monitor
+
+Start monitor service
+
+sudo systemctl start meshtastic-monitor
+
+View live systemd journal for monitor
+
+journalctl -u meshtastic-monitor -f
+
+
+==================================================
+FORCE TELEMETRY
+==================================================
+
+Force telemetry using serial connection
+(only if the monitor service is not connected)
+
+meshtastic --port /dev/ttyUSB0 --request-telemetry
+
+Force telemetry using TCP connection
+(only if the monitor service is not connected)
+
+meshtastic --host NODE_IP --request-telemetry
+
+
+==================================================
+LOGROTATE TESTING
+==================================================
+
+Force rotate monitor logs
+
+sudo logrotate -f /etc/logrotate.d/meshtastic-monitor
+
+
