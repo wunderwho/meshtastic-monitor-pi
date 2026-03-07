@@ -1,0 +1,39 @@
+UPS Log Field Definitions
+
+ts
+  Unix epoch timestamp when the sample was recorded.
+
+voltage_v
+  Output voltage measured on the UPS rail.
+
+current_a
+  Current measured on the UPS output rail.
+  Positive = charging from mains.
+  Negative = battery discharge.
+
+power_w_measured
+  Raw power measured by the INA219 on the UPS output rail.
+
+load_w
+  Estimated real system power consumption.
+  Calculated by multiplying measured output power by a correction factor
+  to approximate battery-side power draw.
+
+avg_power_w
+  Rolling average of estimated load while on battery.
+
+remaining_wh
+  Estimated remaining battery capacity in watt-hours.
+
+runtime_hours
+  Estimated remaining runtime based on remaining energy and average load.
+
+on_battery
+  Boolean indicating whether the node is running on battery power.
+
+POWER_LOST
+  Logged when the system detects a transition from mains to battery.
+
+POWER_RESTORED
+  Logged when mains power returns.
+  Includes outage duration in seconds.

@@ -3,5 +3,10 @@ ansible_user: "{{ vault_ansible_user }}"
 monitor_user: "{{ vault_monitor_user }}"
 meshtastic_host: "{{ vault_meshtastic_host }}"
 
-# UPS logging
+# UPS logging configuration
 ups_log_interval: 60
+
+# UPS load correction factor
+# INA219 measures post-regulator output power, not battery draw.
+# This multiplier approximates actual battery consumption.
+ups_power_multiplier: 6
