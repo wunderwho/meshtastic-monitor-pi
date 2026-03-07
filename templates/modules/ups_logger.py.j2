@@ -1,0 +1,115 @@
+import time
+import subprocess
+import os
+import board
+import busio
+from adafruit_ina219 import INA219
+
+BASE_PATH = "{{ monitor_home }}"
+LOG_FILE = os.path.join(BASE_PATH, "ups.log")
+UPS_INTERVAL = {{ telemetry_interval }}
+
+FULL_VOLTAGE = 12.6
+EMPTY_VOLTAGE = 9.6
+SHUTDOWN_VOLTAGE = 9.8
+WARN_VOLTAGE = 10.2
+PACK_CAPACITY_WH = 33.0
+ASSUMED_LOAD_WATTS = 1.2
+
+
+def log_line(line):
+    with open(LOG_FILE, "a") as f:
+        f.write(line + "\n")
+
+
+def watchdog_ping():
+    if "WATCHDOG_USEC" in os.environ:
+        subprocess.run(["systemd-notify", "WATCHDOG=1"])
+
+
+def estimate_percentage(voltage):
+    pct = (voltage - EMPTY_VOLTAGE) / (FULL_VOLTAGE - EMPTY_VOLTAGE) * 100
+    pct = max(0, min(100, pct))
+    return pct
+
+
+def capacity_wh_from_pct(pct):
+    return PACK_CAPACITY_WH * (pct / 100.0)
+
+
+def runtime_minutes(remaining_wh):
+    return (remaining_wh / ASSUMED_LOAD_WATTS) * 60
+
+
+def find_ups_bus():
+    for dev in os.listdir("/dev"):
+        if dev.startswith("i2c-"):
+            bus = dev.split("-")[1]
+            try:
+                result = subprocess.run(
+                    ["i2cdetect", "-y", bus],
+                    capture_output=True,
+                    text=True
+                )
+                if "41" in result.stdout:
+                    return int(bus)
+            except Exception:
+                pass
+    return None
+
+
+bus = None
+while bus is None:
+    bus = find_ups_bus()
+    if bus is None:
+        time.sleep(5)
+
+log_line(f"{int(time.time())},info=ups_detected,bus={bus}")
+
+i2c = busio.I2C(board.SCL, board.SDA)
+ina219 = INA219(i2c, addr=0x41)
+
+shutdown_triggered = False
+
+while True:
+    try:
+        voltage = ina219.bus_voltage
+        current = ina219.current
+
+        pct = estimate_percentage(voltage)
+        remaining_wh = capacity_wh_from_pct(pct)
+
+        runtime_empty = runtime_minutes(remaining_wh)
+
+        shutdown_pct = estimate_percentage(SHUTDOWN_VOLTAGE)
+        shutdown_wh = capacity_wh_from_pct(shutdown_pct)
+
+        usable_wh = max(0, remaining_wh - shutdown_wh)
+        runtime_shutdown = runtime_minutes(usable_wh)
+
+        ts = int(time.time())
+
+        log_line(
+            f"{ts},"
+            f"voltage={voltage:.3f},"
+            f"current={current:.3f},"
+            f"battery_pct={pct:.1f},"
+            f"capacity_wh={remaining_wh:.2f},"
+            f"runtime_to_empty_min={runtime_empty:.1f},"
+            f"runtime_to_shutdown_min={runtime_shutdown:.1f}"
+        )
+
+        if voltage <= WARN_VOLTAGE:
+            log_line(f"{ts},warning=low_voltage,voltage={voltage:.3f}")
+
+        if voltage <= SHUTDOWN_VOLTAGE and not shutdown_triggered:
+            log_line(f"{ts},critical=shutdown_triggered,voltage={voltage:.3f}")
+            shutdown_triggered = True
+            subprocess.run(["sudo", "shutdown", "-h", "now"])
+
+        watchdog_ping()
+
+    except Exception as e:
+        log_line(f"{int(time.time())},error={str(e)}")
+
+    time.sleep(UPS_INTERVAL)

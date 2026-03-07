@@ -1,0 +1,34 @@
+import json
+import os
+from datetime import datetime
+
+def handle(packet, base_path, local_node_id):
+    d = packet.get("decoded", {})
+    port = d.get("portnum")
+
+    if port != "TELEMETRY_APP":
+        return
+
+    node_id = packet.get("fromId") or packet.get("from")
+
+    em = d.get("telemetry", {}).get("environmentMetrics", {})
+    if not em:
+        return
+
+    record = {
+        "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "type": "environment",
+        "node": node_id,
+        "temperature": em.get("temperature"),
+        "humidity": em.get("humidity"),
+        "pressure": em.get("barometricPressure")
+    }
+
+    # include distance if monitor.py added it
+    if "distance" in packet:
+        record["distance"] = packet["distance"]
+
+    path = os.path.join(base_path, "environment.log")
+
+    with open(path, "a") as f:
+        f.write(json.dumps(record) + "\n")

@@ -1,0 +1,112 @@
+---
+- name: Configure UPS monitoring
+  hosts: pis
+  become: true
+
+  vars:
+    monitor_home: "/home/{{ monitor_user }}"
+    venv_path: "{{ monitor_home }}/meshtastic-venv"
+
+  tasks:
+
+    - name: Enable I2C interface (modern Pi OS location)
+      ansible.builtin.lineinfile:
+        path: /boot/firmware/config.txt
+        regexp: '^dtparam=i2c_arm='
+        line: 'dtparam=i2c_arm=on'
+        state: present
+      register: i2c_config
+      notify: reboot for i2c
+
+    - name: Ensure i2c-dev module loads at boot
+      ansible.builtin.copy:
+        dest: /etc/modules-load.d/i2c.conf
+        content: |
+          i2c-dev
+        mode: "0644"
+
+    - name: Install required system packages
+      ansible.builtin.apt:
+        name:
+          - i2c-tools
+          - raspi-utils
+        state: present
+        update_cache: true
+
+    - name: Install UPS Python dependencies
+      ansible.builtin.pip:
+        name:
+          - adafruit-blinka
+          - adafruit-circuitpython-busdevice
+          - adafruit-circuitpython-ina219
+        virtualenv: "{{ venv_path }}"
+
+    - name: Create UPS log file
+      ansible.builtin.file:
+        path: "{{ monitor_home }}/ups.log"
+        state: touch
+        owner: "{{ monitor_user }}"
+        group: "{{ monitor_user }}"
+        mode: "0644"
+
+    - name: Deploy UPS logger script
+      ansible.builtin.template:
+        src: templates/modules/ups_logger.py.j2
+        dest: "{{ monitor_home }}/ups_logger.py"
+        owner: "{{ monitor_user }}"
+        group: "{{ monitor_user }}"
+        mode: "0755"
+
+    - name: Install UPS systemd service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/ups-monitor.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=UPS Power Monitor
+          After=network.target
+
+          [Service]
+          User={{ monitor_user }}
+          WorkingDirectory={{ monitor_home }}
+          ExecStart={{ venv_path }}/bin/python -u {{ monitor_home }}/ups_logger.py
+          Restart=always
+          RestartSec=5
+          WatchdogSec=60
+          StandardOutput=append:{{ monitor_home }}/ups.log
+          StandardError=append:{{ monitor_home }}/ups.log
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Install logrotate configuration
+      ansible.builtin.copy:
+        dest: /etc/logrotate.d/ups-monitor
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          {{ monitor_home }}/ups.log {
+              daily
+              rotate 14
+              compress
+              missingok
+              notifempty
+              copytruncate
+          }
+
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Ensure UPS service is installed but disabled
+      ansible.builtin.systemd:
+        name: ups-monitor
+        enabled: false
+
+  handlers:
+
+    - name: reboot for i2c
+      ansible.builtin.reboot:
+        msg: "Rebooting to enable I2C interface"
+        reboot_timeout: 300

@@ -1,0 +1,104 @@
+from datetime import datetime
+import math
+
+# Cache positions in memory
+local_position = {"lat": None, "lon": None}
+node_positions = {}
+
+def short_id(node_id):
+    if not node_id:
+        return "????"
+    return str(node_id).replace("!", "")[-4:]
+
+def haversine(lat1, lon1, lat2, lon2):
+    R = 6371000  # meters
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+
+    a = math.sin(dphi / 2) ** 2 + \
+        math.cos(phi1) * math.cos(phi2) * \
+        math.sin(dlambda / 2) ** 2
+
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c
+
+def format_distance(node_id):
+    if not local_position["lat"]:
+        return ""
+    pos = node_positions.get(node_id)
+    if not pos:
+        return ""
+
+    dist = haversine(
+        local_position["lat"],
+        local_position["lon"],
+        pos["lat"],
+        pos["lon"]
+    )
+    return f" dist={round(dist,1)}m"
+
+def handle(packet, base_path, local_node_id):
+    global local_position, node_positions
+
+    d = packet.get("decoded", {})
+    port = d.get("portnum")
+    node_id = packet.get("fromId") or packet.get("from")
+    snr = packet.get("rxSnr")
+    rssi = packet.get("rxRssi")
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    if not node_id:
+        return
+
+    # --- Capture POSITION packets ---
+    if port == "POSITION_APP":
+        p = d.get("position", {})
+        lat = p.get("latitude")
+        lon = p.get("longitude")
+
+        if lat and lon:
+            if node_id == local_node_id:
+                local_position["lat"] = lat
+                local_position["lon"] = lon
+            else:
+                node_positions[node_id] = {"lat": lat, "lon": lon}
+
+    # Do not log local node
+    if node_id == local_node_id:
+        return
+
+    sid = short_id(node_id)
+    dist_str = format_distance(node_id)
+
+    if port == "TELEMETRY_APP":
+        t = d.get("telemetry", {}).get("deviceMetrics", {})
+        print(
+            f"{ts} TELEM id={sid}/{node_id} "
+            f"batt={t.get('batteryLevel')}% "
+            f"v={t.get('voltage')} "
+            f"snr={snr} rssi={rssi}"
+            f"{dist_str}"
+        )
+
+    elif port == "NODEINFO_APP":
+        u = d.get("user", {})
+        role = u.get("role")
+        print(
+            f"{ts} NODE id={sid}/{node_id} "
+            f"name={u.get('longName')} "
+            f"role={role} "
+            f"hw={u.get('hwModel')} "
+            f"snr={snr} rssi={rssi}"
+            f"{dist_str}"
+        )
+
+    elif port == "TEXT_MESSAGE_APP":
+        txt = d.get("text", "")
+        print(
+            f"{ts} TEXT id={sid}/{node_id} "
+            f"snr={snr} rssi={rssi}"
+            f"{dist_str} "
+            f"msg={txt}"
+        )

@@ -1,0 +1,171 @@
+---
+- name: Deploy Meshtastic Monitor
+  hosts: pis
+  become: true
+
+  vars:
+    monitor_home: "/home/{{ monitor_user }}"
+    venv_path: "{{ monitor_home }}/meshtastic-venv"
+    modules_path: "{{ monitor_home }}/modules"
+
+  tasks:
+
+    - name: Install required packages
+      ansible.builtin.apt:
+        name:
+          - python3-venv
+          - python3-full
+          - python3-pip
+          - python3-setuptools
+          - jq
+          - logrotate
+        state: present
+        update_cache: true
+
+    - name: Ensure monitor directories exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ monitor_user }}"
+        group: "{{ monitor_user }}"
+        mode: "0755"
+      loop:
+        - "{{ monitor_home }}"
+        - "{{ modules_path }}"
+
+    - name: Create virtual environment
+      ansible.builtin.command: python3 -m venv {{ venv_path }}
+      args:
+        creates: "{{ venv_path }}/bin/python"
+
+    - name: Ensure required Python packages are installed in venv
+      ansible.builtin.pip:
+        name:
+          - meshtastic
+          - pyqrcode
+        virtualenv: "{{ venv_path }}"
+
+    - name: Verify meshtastic CLI exists
+      ansible.builtin.stat:
+        path: "{{ venv_path }}/bin/meshtastic"
+      register: meshtastic_cli
+
+    - name: Fail if CLI not present
+      ansible.builtin.fail:
+        msg: "Meshtastic CLI not installed inside virtualenv."
+      when: not meshtastic_cli.stat.exists
+
+    - name: Expose meshtastic CLI system-wide
+      ansible.builtin.file:
+        src: "{{ venv_path }}/bin/meshtastic"
+        dest: /usr/local/bin/meshtastic
+        state: link
+        force: true
+
+    - name: Deploy monitor core
+      ansible.builtin.template:
+        src: templates/monitor.py.j2
+        dest: "{{ monitor_home }}/monitor.py"
+        owner: "{{ monitor_user }}"
+        group: "{{ monitor_user }}"
+        mode: "0755"
+
+    - name: Deploy mesh logger module
+      ansible.builtin.template:
+        src: templates/modules/mesh_logger.py.j2
+        dest: "{{ modules_path }}/mesh_logger.py"
+        owner: "{{ monitor_user }}"
+        group: "{{ monitor_user }}"
+        mode: "0644"
+
+    - name: Deploy device logger module
+      ansible.builtin.template:
+        src: templates/modules/device_logger.py.j2
+        dest: "{{ modules_path }}/device_logger.py"
+        owner: "{{ monitor_user }}"
+        group: "{{ monitor_user }}"
+        mode: "0644"
+
+    - name: Deploy telemetry logger module
+      ansible.builtin.template:
+        src: templates/modules/telemetry_logger.py.j2
+        dest: "{{ modules_path }}/telemetry_logger.py"
+        owner: "{{ monitor_user }}"
+        group: "{{ monitor_user }}"
+        mode: "0644"
+
+    - name: Deploy environment logger module
+      ansible.builtin.template:
+        src: templates/modules/environment_logger.py.j2
+        dest: "{{ modules_path }}/environment_logger.py"
+        owner: "{{ monitor_user }}"
+        group: "{{ monitor_user }}"
+        mode: "0644"
+
+    - name: Deploy position logger module
+      ansible.builtin.template:
+        src: templates/modules/position_logger.py.j2
+        dest: "{{ modules_path }}/position_logger.py"
+        owner: "{{ monitor_user }}"
+        group: "{{ monitor_user }}"
+        mode: "0644"
+
+    - name: Install logrotate configuration for meshtastic monitor
+      ansible.builtin.copy:
+        dest: /etc/logrotate.d/meshtastic-monitor
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          {{ monitor_home }}/telemetry.log
+          {{ monitor_home }}/device.log
+          {{ monitor_home }}/mesh.log
+          {{ monitor_home }}/environment.log
+          {{ monitor_home }}/position.log {
+              daily
+              rotate 14
+              compress
+              missingok
+              notifempty
+              copytruncate
+          }
+
+    - name: Remove legacy meshtastic-telemetry logrotate config
+      ansible.builtin.file:
+        path: /etc/logrotate.d/meshtastic-telemetry
+        state: absent
+
+    - name: Install systemd service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/meshtastic-monitor.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Meshtastic Monitor (Modular)
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          User={{ monitor_user }}
+          WorkingDirectory={{ monitor_home }}
+          {% if meshtastic_connection == "serial" %}
+          ExecStartPre=/bin/sh -c 'for i in $(seq 1 30); do [ -e "{{ meshtastic_port }}" ] && exit 0; sleep 1; done; echo "Serial device not found"; exit 1'
+          {% endif %}
+          ExecStart={{ venv_path }}/bin/python -u {{ monitor_home }}/monitor.py
+          Restart=always
+          RestartSec=5
+          StandardOutput=append:{{ monitor_home }}/mesh.log
+          StandardError=append:{{ monitor_home }}/mesh.log
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Enable and start monitor service
+      ansible.builtin.systemd:
+        name: meshtastic-monitor
+        enabled: true
+        state: started

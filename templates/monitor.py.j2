@@ -1,0 +1,83 @@
+import meshtastic
+from meshtastic.tcp_interface import TCPInterface
+from meshtastic.serial_interface import SerialInterface
+from pubsub import pub
+from datetime import datetime
+import time
+import threading
+import importlib
+
+CONNECTION_TYPE = "{{ meshtastic_connection }}"
+HOST = "{{ meshtastic_host | default('') }}"
+PORT = "{{ meshtastic_port | default('') }}"
+TELEMETRY_ENABLED = {{ telemetry_enabled | default(True) }}
+TELEMETRY_INTERVAL = int("{{ telemetry_interval | default(300) }}")
+LOCAL_NODE_ID = "{{ local_node_id | default('') }}"
+BASE_PATH = "{{ monitor_home }}"
+
+MODULES = [
+    "mesh_logger",
+    "device_logger",
+    "telemetry_logger",
+    "environment_logger",
+    "position_logger"
+]
+
+loaded_modules = []
+
+for name in MODULES:
+    try:
+        mod = importlib.import_module(f"modules.{name}")
+        loaded_modules.append(mod)
+        print(f"Loaded module: {name}")
+    except Exception as e:
+        print(f"Module load failed: {name} -> {e}")
+
+
+def on_receive(packet, interface=None):
+    for mod in loaded_modules:
+        try:
+            mod.handle(packet, BASE_PATH, LOCAL_NODE_ID)
+        except Exception as e:
+            print(f"Module error in {mod.__name__}: {e}")
+
+
+def telemetry_loop(interface):
+    while True:
+        try:
+            interface.sendTelemetry()
+        except Exception as e:
+            print(f"Telemetry send failed: {e}")
+        time.sleep(TELEMETRY_INTERVAL)
+
+
+# CONNECT TO NODE
+iface = None
+
+if CONNECTION_TYPE.lower() == "tcp":
+    iface = TCPInterface(hostname=HOST)
+
+elif CONNECTION_TYPE.lower() == "serial":
+    iface = SerialInterface(PORT)
+
+else:
+    raise ValueError("meshtastic_connection must be 'tcp' or 'serial'")
+
+
+pub.subscribe(on_receive, "meshtastic.receive")
+
+
+if TELEMETRY_ENABLED:
+    t = threading.Thread(target=telemetry_loop, args=(iface,), daemon=True)
+    t.start()
+
+
+print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} Connected via {CONNECTION_TYPE}. Monitoring...")
+
+
+# Keep process alive forever
+try:
+    while True:
+        time.sleep(3600)
+except KeyboardInterrupt:
+    pass

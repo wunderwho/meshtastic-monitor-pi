@@ -1,0 +1,12 @@
+{{ monitor_home }}/telemetry.log
+{{ monitor_home }}/device.log
+{{ monitor_home }}/mesh.log
+{{ monitor_home }}/environment.log
+{{ monitor_home }}/position.log {
+    daily
+    rotate 14
+    compress
+    missingok
+    notifempty
+    copytruncate
+}

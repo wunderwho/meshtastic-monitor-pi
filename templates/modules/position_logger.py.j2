@@ -1,0 +1,28 @@
+import json
+import os
+from datetime import datetime
+
+def handle(packet, base_path, local_node_id):
+    d = packet.get("decoded", {})
+    port = d.get("portnum")
+    node_id = packet.get("fromId") or packet.get("from")
+
+    if node_id != local_node_id or port != "POSITION_APP":
+        return
+
+    pos = d.get("position", {})
+
+    record = {
+        "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "type": "position",
+        "latitude": pos.get("latitude"),
+        "longitude": pos.get("longitude"),
+        "altitude": pos.get("altitude"),
+        "sats_in_view": pos.get("satsInView"),
+        "ground_speed": pos.get("groundSpeed"),
+        "ground_track": pos.get("groundTrack")
+    }
+
+    path = os.path.join(base_path, "position.log")
+    with open(path, "a") as f:
+        f.write(json.dumps(record) + "\n")
