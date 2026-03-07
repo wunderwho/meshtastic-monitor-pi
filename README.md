@@ -5,7 +5,8 @@ Pi and node powered seperately with a Waveshare UPS 3S & 5V 5A Output, fed by a 
 
 Next steps:
 1) Standardize logging
-2) Generalize UPS logging
+20260307 UPS human and JSON logging is cleaned up. Other logs need verification and tweaking.
+
 
 
 Meshtastic Telemetry Pipeline (planned architecture)
