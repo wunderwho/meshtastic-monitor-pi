@@ -18,5 +18,6 @@ ups_mesh_restore_delay: 300
 
 # Meshtastic command configuration
 ups_mesh_command_trigger: "upsstat"
-  #ups_mesh_channel_name: "upsmonitor"
-  #ups_mesh_channel_key: "{{ vault_ups_mesh_channel_key }}"
+
+# Mesh log file location (derived, no username in plaintext)
+ups_mesh_log_file: "/home/{{ monitor_user }}/mesh.log"

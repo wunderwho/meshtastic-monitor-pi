@@ -10,7 +10,7 @@ from adafruit_ina219 import INA219
 from datetime import datetime
 from statistics import mean
 
-BASE_PATH = "{{ monitor_home }}"
+BASE_PATH = "/home/{{ monitor_user }}"
 
 JSON_LOG = os.path.join(BASE_PATH, "ups.json")
 TEXT_LOG = os.path.join(BASE_PATH, "ups.log")
@@ -23,11 +23,11 @@ SHUTDOWN_VOLTAGE = {{ ups_mesh_shutdown_voltage | default(9.8) }}
 
 RESTORE_DELAY = {{ ups_mesh_restore_delay | default(300) }}
 
-TRIGGER_PHRASE = "{{ ups_mesh_command_trigger | default('UPS?') }}".lower()
+TRIGGER_PHRASE = "{{ ups_mesh_command_trigger | default('upsstat') }}".lower()
 
+MESH_LOG_FILE = "{{ ups_mesh_log_file }}"
 
 PACK_CAPACITY_WH = 33.0
-
 ROLLING_SAMPLES = 20
 
 power_samples = []
@@ -42,6 +42,8 @@ last_ts = time.time()
 warn_sent = False
 shutdown_triggered = False
 
+mesh_log_position = 0
+
 
 def log_json(data):
     with open(JSON_LOG, "a") as f:
@@ -54,42 +56,39 @@ def log_text(line):
 
 
 def mesh_send(message):
-
     try:
-
         subprocess.run(
-            [
-                "meshtastic",
-                "--ch-set",
-                "name", CHANNEL_NAME,
-                "--ch-set",
-                "psk", CHANNEL_KEY,
-                "--sendtext",
-                message
-            ],
+            ["meshtastic", "--sendtext", message],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL
         )
-
     except Exception:
         pass
 
 
-def mesh_check_command():
+def check_mesh_command():
+
+    global mesh_log_position
 
     try:
 
-        result = subprocess.run(
-            ["meshtastic", "--receive", "--limit", "1"],
-            capture_output=True,
-            text=True
-        )
+        if not os.path.exists(MESH_LOG_FILE):
+            return False
 
-        output = result.stdout.lower()
+        with open(MESH_LOG_FILE, "r", errors="ignore") as f:
 
-        if TRIGGER_PHRASE in output:
+            f.seek(mesh_log_position)
 
-            return True
+            lines = f.readlines()
+
+            mesh_log_position = f.tell()
+
+            for line in lines:
+
+                lower = line.lower()
+
+                if "msg=" in lower and TRIGGER_PHRASE in lower:
+                    return True
 
     except Exception:
         pass
@@ -260,7 +259,7 @@ while True:
 
             subprocess.run(["sudo", "shutdown", "-h", "now"])
 
-        if mesh_check_command():
+        if check_mesh_command():
 
             status = (
                 f"UPS STATUS | "
