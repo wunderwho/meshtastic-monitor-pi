@@ -21,11 +21,19 @@
 
 - name: Deploy UPS logger
   template:
-    src: modules/ups_logger.py.j2
+    src: ../../templates/modules/ups_logger.py.j2
     dest: "/home/{{ monitor_user }}/ups_logger.py"
     owner: "{{ monitor_user }}"
     group: "{{ monitor_user }}"
     mode: "0755"
+
+#- name: Deploy UPS logger
+#  template:
+#    src: modules/ups_logger.py.j2
+#    dest: "/home/{{ monitor_user }}/ups_logger.py"
+#    owner: "{{ monitor_user }}"
+#    group: "{{ monitor_user }}"
+#    mode: "0755"
 
 - name: Install UPS monitor systemd service
   copy:
