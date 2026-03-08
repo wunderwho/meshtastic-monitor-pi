@@ -42,7 +42,7 @@ last_ts = time.time()
 warn_sent = False
 shutdown_triggered = False
 
-mesh_log_position = 0
+mesh_log_position = None
 
 
 def log_json(data):
@@ -84,6 +84,11 @@ def check_mesh_command():
             return False
 
         with open(MESH_LOG_FILE, "r", errors="ignore") as f:
+
+            if mesh_log_position is None:
+                f.seek(0, os.SEEK_END)
+                mesh_log_position = f.tell()
+                return False
 
             f.seek(mesh_log_position)
 
