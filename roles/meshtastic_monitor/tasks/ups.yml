@@ -1,0 +1,58 @@
+---
+
+- name: Create UPS log files
+  file:
+    path: "/home/{{ monitor_user }}/{{ item }}"
+    state: touch
+    owner: "{{ monitor_user }}"
+    group: "{{ monitor_user }}"
+    mode: "0644"
+  loop:
+    - ups.log
+    - ups.json
+
+- name: Deploy mesh logger config
+  template:
+    src: mesh_logger_config.json.j2
+    dest: "/home/{{ monitor_user }}/mesh_logger_config.json"
+    owner: "{{ monitor_user }}"
+    group: "{{ monitor_user }}"
+    mode: "0644"
+
+- name: Deploy UPS logger
+  template:
+    src: modules/ups_logger.py.j2
+    dest: "/home/{{ monitor_user }}/ups_logger.py"
+    owner: "{{ monitor_user }}"
+    group: "{{ monitor_user }}"
+    mode: "0755"
+
+- name: Install UPS monitor systemd service
+  copy:
+    dest: /etc/systemd/system/ups-monitor.service
+    content: |
+      [Unit]
+      Description=UPS Power Monitor
+      After=network.target
+
+      [Service]
+      ExecStart=/home/{{ monitor_user }}/meshtastic-venv/bin/python -u /home/{{ monitor_user }}/ups_logger.py
+      Restart=always
+      User={{ monitor_user }}
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: Reload systemd
+  systemd:
+    daemon_reload: yes
+
+- name: Enable UPS monitor service
+  systemd:
+    name: ups-monitor
+    enabled: yes
+
+- name: Restart UPS monitor service
+  systemd:
+    name: ups-monitor
+    state: restarted
