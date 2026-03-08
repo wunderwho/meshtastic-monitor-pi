@@ -58,7 +58,15 @@ def log_text(line):
 def mesh_send(message):
     try:
         subprocess.run(
-            ["meshtastic", "--ch-index", "1", "--sendtext", message],
+            [
+                "meshtastic",
+                "--ch-index",
+                "1",
+                "--sendtext",
+                message,
+                "--wait-to-disconnect",
+                "2"
+            ],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL
         )
@@ -164,7 +172,7 @@ while True:
 
             log_text(f"{datetime.now().isoformat()} POWER_LOST")
 
-            mesh_send("⚠️ Node running on battery power")
+            mesh_send("Node running on battery power")
 
         if current_a > 0.005 and on_battery:
 
