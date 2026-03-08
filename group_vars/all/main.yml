@@ -7,6 +7,9 @@ meshtastic_host: "{{ vault_meshtastic_host }}"
 ups_log_interval: 60
 
 # UPS load correction factor
-# INA219 measures post-regulator output power, not battery draw.
-# This multiplier approximates actual battery consumption.
 ups_power_multiplier: 18
+
+# Mesh alert behavior
+ups_mesh_restore_delay: 300
+ups_mesh_low_voltage: 10.2
+ups_mesh_shutdown_voltage: 9.8

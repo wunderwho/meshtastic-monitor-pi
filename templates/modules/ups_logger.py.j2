@@ -16,11 +16,14 @@ JSON_LOG = os.path.join(BASE_PATH, "ups.json")
 TEXT_LOG = os.path.join(BASE_PATH, "ups.log")
 
 UPS_INTERVAL = {{ ups_log_interval | default(60) }}
-POWER_MULTIPLIER = {{ ups_power_multiplier | default(6) }}
+POWER_MULTIPLIER = {{ ups_power_multiplier | default(18) }}
+
+WARN_VOLTAGE = {{ ups_mesh_low_voltage | default(10.2) }}
+SHUTDOWN_VOLTAGE = {{ ups_mesh_shutdown_voltage | default(9.8) }}
+
+RESTORE_DELAY = {{ ups_mesh_restore_delay | default(300) }}
 
 PACK_CAPACITY_WH = 33.0
-WARN_VOLTAGE = 10.2
-SHUTDOWN_VOLTAGE = 9.8
 
 ROLLING_SAMPLES = 20
 
@@ -28,9 +31,12 @@ power_samples = []
 
 on_battery = False
 outage_start = None
+restore_detected_ts = None
 
 energy_used_wh = 0.0
 last_ts = time.time()
+
+warn_sent = False
 
 
 def log_json(data):
@@ -41,6 +47,17 @@ def log_json(data):
 def log_text(line):
     with open(TEXT_LOG, "a") as f:
         f.write(line + "\n")
+
+
+def mesh_send(message):
+    try:
+        subprocess.run(
+            ["meshtastic", "--sendtext", message],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+    except Exception:
+        pass
 
 
 def find_ups_bus():
@@ -75,6 +92,7 @@ shutdown_triggered = False
 
 while True:
     try:
+
         ts = time.time()
 
         voltage = float(ina219.bus_voltage)
@@ -83,29 +101,47 @@ while True:
         current_a = current_ma / 1000.0
         measured_power_w = voltage * current_a
 
-        # Estimated real battery load
         load_w = abs(measured_power_w) * POWER_MULTIPLIER
 
         if current_a < -0.005 and not on_battery:
+
             on_battery = True
             outage_start = ts
+            restore_detected_ts = None
+            warn_sent = False
             energy_used_wh = 0.0
             power_samples = []
+
             log_text(f"{datetime.now().isoformat()} POWER_LOST")
 
+            mesh_send("⚠️ Node running on battery power")
+
         if current_a > 0.005 and on_battery:
+
             on_battery = False
-            duration = ts - outage_start if outage_start else 0
-            log_text(f"{datetime.now().isoformat()} POWER_RESTORED outage_seconds={int(duration)}")
-            outage_start = None
-            energy_used_wh = 0.0
-            power_samples = []
+            restore_detected_ts = ts
+
+        if not on_battery and restore_detected_ts:
+
+            if ts - restore_detected_ts >= RESTORE_DELAY:
+
+                duration = restore_detected_ts - outage_start if outage_start else 0
+
+                log_text(
+                    f"{datetime.now().isoformat()} POWER_RESTORED outage_seconds={int(duration)}"
+                )
+
+                mesh_send(f"✅ Power restored after {int(duration)} seconds")
+
+                restore_detected_ts = None
+                outage_start = None
 
         avg_power = None
         runtime_hr = None
         remaining_wh = None
 
         if on_battery:
+
             if load_w > 0:
                 power_samples.append(load_w)
 
@@ -116,6 +152,7 @@ while True:
 
             elapsed_hr = (ts - last_ts) / 3600
             energy_used_wh += load_w * elapsed_hr
+
             remaining_wh = max(PACK_CAPACITY_WH - energy_used_wh, 0)
 
             if avg_power and avg_power > 0:
@@ -129,17 +166,18 @@ while True:
             "current_a": round(current_a, 3),
             "power_w_measured": round(measured_power_w, 3),
             "load_w": round(load_w, 3),
-            "avg_power_w": round(avg_power, 3) if avg_power is not None else None,
-            "remaining_wh": round(remaining_wh, 3) if remaining_wh is not None else None,
-            "runtime_hours": round(runtime_hr, 2) if runtime_hr is not None else None,
+            "avg_power_w": round(avg_power, 3) if avg_power else None,
+            "remaining_wh": round(remaining_wh, 3) if remaining_wh else None,
+            "runtime_hours": round(runtime_hr, 2) if runtime_hr else None,
             "on_battery": on_battery
         }
 
         log_json(json_data)
 
         human_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        avg_text = f"{avg_power:.2f}W" if avg_power is not None else "n/a"
-        runtime_text = f"{runtime_hr:.2f}h" if runtime_hr is not None else "n/a"
+
+        avg_text = f"{avg_power:.2f}W" if avg_power else "n/a"
+        runtime_text = f"{runtime_hr:.2f}h" if runtime_hr else "n/a"
 
         log_text(
             f"{human_time} | "
@@ -151,12 +189,22 @@ while True:
             f"battery:{on_battery}"
         )
 
-        if voltage <= WARN_VOLTAGE:
+        if on_battery and voltage <= WARN_VOLTAGE and not warn_sent:
+
+            warn_sent = True
+
             log_text(f"{human_time} WARNING low voltage {voltage:.2f}V")
 
+            mesh_send("⚠️ Battery voltage low")
+
         if voltage <= SHUTDOWN_VOLTAGE and not shutdown_triggered:
+
             log_text(f"{human_time} CRITICAL shutdown triggered")
+
+            mesh_send("🛑 Node shutting down due to low battery")
+
             shutdown_triggered = True
+
             subprocess.run(["sudo", "shutdown", "-h", "now"])
 
     except Exception as e:
