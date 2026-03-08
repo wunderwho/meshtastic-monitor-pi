@@ -9,4 +9,4 @@ ups_log_interval: 60
 # UPS load correction factor
 # INA219 measures post-regulator output power, not battery draw.
 # This multiplier approximates actual battery consumption.
-ups_power_multiplier: 6
+ups_power_multiplier: 18
