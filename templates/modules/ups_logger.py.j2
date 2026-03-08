@@ -37,6 +37,7 @@ energy_used_wh = 0.0
 last_ts = time.time()
 
 warn_sent = False
+shutdown_triggered = False
 
 
 def log_json(data):
@@ -60,45 +61,81 @@ def mesh_send(message):
         pass
 
 
+def mesh_check_command():
+
+    try:
+
+        result = subprocess.run(
+            ["meshtastic", "--receive", "--limit", "1"],
+            capture_output=True,
+            text=True
+        )
+
+        output = result.stdout.lower()
+
+        if "ups?" in output:
+
+            return True
+
+    except Exception:
+        pass
+
+    return False
+
+
 def find_ups_bus():
+
     for dev in os.listdir("/dev"):
+
         if dev.startswith("i2c-"):
+
             bus = dev.split("-")[1]
+
             try:
+
                 result = subprocess.run(
                     ["i2cdetect", "-y", bus],
                     capture_output=True,
                     text=True
                 )
+
                 if "41" in result.stdout:
                     return int(bus)
+
             except Exception:
                 pass
+
     return None
 
 
 bus = None
+
 while bus is None:
+
     bus = find_ups_bus()
+
     if bus is None:
         time.sleep(5)
 
 i2c = busio.I2C(board.SCL, board.SDA)
+
 ina219 = INA219(i2c, addr=0x41)
 
 log_text(f"{datetime.now().isoformat()} UPS detected on I2C bus {bus}")
 
-shutdown_triggered = False
 
 while True:
+
     try:
 
         ts = time.time()
 
         voltage = float(ina219.bus_voltage)
+
         current_ma = float(ina219.current)
 
         current_a = current_ma / 1000.0
+
         measured_power_w = voltage * current_a
 
         load_w = abs(measured_power_w) * POWER_MULTIPLIER
@@ -151,6 +188,7 @@ while True:
             avg_power = mean(power_samples) if power_samples else None
 
             elapsed_hr = (ts - last_ts) / 3600
+
             energy_used_wh += load_w * elapsed_hr
 
             remaining_wh = max(PACK_CAPACITY_WH - energy_used_wh, 0)
@@ -177,6 +215,7 @@ while True:
         human_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         avg_text = f"{avg_power:.2f}W" if avg_power else "n/a"
+
         runtime_text = f"{runtime_hr:.2f}h" if runtime_hr else "n/a"
 
         log_text(
@@ -207,7 +246,19 @@ while True:
 
             subprocess.run(["sudo", "shutdown", "-h", "now"])
 
+        if mesh_check_command():
+
+            status = (
+                f"UPS STATUS | "
+                f"{voltage:.2f}V "
+                f"load:{load_w:.2f}W "
+                f"battery:{on_battery}"
+            )
+
+            mesh_send(status)
+
     except Exception as e:
+
         log_text(f"{datetime.now().isoformat()} ERROR {str(e)}")
 
     time.sleep(UPS_INTERVAL)
