@@ -9,7 +9,14 @@ ups_log_interval: 60
 # UPS load correction factor
 ups_power_multiplier: 18
 
-# Mesh alert behavior
-ups_mesh_restore_delay: 300
+# Voltage thresholds
 ups_mesh_low_voltage: 10.2
 ups_mesh_shutdown_voltage: 9.8
+
+# Delay before reporting power restored (seconds)
+ups_mesh_restore_delay: 300
+
+# Meshtastic command configuration
+ups_mesh_command_trigger: "UPS?"
+ups_mesh_channel_name: "upsmonitor"
+ups_mesh_channel_key: "{{ vault_ups_mesh_channel_key }}"
