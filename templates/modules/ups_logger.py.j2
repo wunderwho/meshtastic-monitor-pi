@@ -58,7 +58,7 @@ def log_text(line):
 def mesh_send(message):
     try:
         subprocess.run(
-            ["meshtastic", "--sendtext", message],
+            ["meshtastic", "--ch-index", "1", "--sendtext", message],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL
         )
@@ -181,7 +181,7 @@ while True:
                     f"{datetime.now().isoformat()} POWER_RESTORED outage_seconds={int(duration)}"
                 )
 
-                mesh_send(f"✅ Power restored after {int(duration)} seconds")
+                mesh_send(f"Power restored after {int(duration)} seconds")
 
                 restore_detected_ts = None
                 outage_start = None
@@ -247,13 +247,13 @@ while True:
 
             log_text(f"{human_time} WARNING low voltage {voltage:.2f}V")
 
-            mesh_send("⚠️ Battery voltage low")
+            mesh_send("Battery voltage low")
 
         if voltage <= SHUTDOWN_VOLTAGE and not shutdown_triggered:
 
             log_text(f"{human_time} CRITICAL shutdown triggered")
 
-            mesh_send("🛑 Node shutting down due to low battery")
+            mesh_send("Node shutting down due to low battery")
 
             shutdown_triggered = True
 
