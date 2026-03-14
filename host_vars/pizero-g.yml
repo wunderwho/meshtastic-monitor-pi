@@ -1,0 +1,20 @@
+monitor_user: "{{ vault_monitor_user }}"
+
+telemetry_enabled: true
+telemetry_interval: 300
+
+## OPTIONS ARE TCP or SERIAL
+meshtastic_connection: serial
+
+## FOR TCP CONNECTIONS
+#meshtastic_host: NODE_IP
+#meshtastic_port: unused
+
+## VARIOUS SERIAL CONNECTIONS
+#meshtastic_port: /dev/ttyUSB0
+#meshtastic_port: /dev/serial0
+meshtastic_port: /dev/ttyACM0
+
+
+## Monitored node information
+local_node_id: "!49b44a44"
