@@ -1,25 +1,47 @@
-import time
 import json
+import time
 from datetime import datetime
-import board
-import busio
-import adafruit_bme680
+
+from meshtastic.serial_interface import SerialInterface
+from pubsub import pub
 
 LOG_FILE = "{{ monitor_home }}/environment.json"
+PORT = "{{ meshtastic_port }}"
+
+last_write = 0
 INTERVAL = 300
 
-i2c = busio.I2C(board.SCL, board.SDA)
-sensor = adafruit_bme680.Adafruit_BME680_I2C(i2c)
 
-while True:
-    data = {
+def handle(packet, interface=None):
+    global last_write
+
+    d = packet.get("decoded", {})
+    if d.get("portnum") != "TELEMETRY_APP":
+        return
+
+    env = d.get("telemetry", {}).get("environmentMetrics")
+    if not env:
+        return
+
+    now = time.time()
+    if now - last_write < INTERVAL:
+        return
+
+    record = {
         "timestamp": datetime.utcnow().isoformat(),
-        "temperature": round(sensor.temperature, 2),
-        "humidity": round(sensor.relative_humidity, 2),
-        "pressure": round(sensor.pressure, 2)
+        "temperature": env.get("temperature"),
+        "humidity": env.get("relativeHumidity"),
+        "pressure": env.get("barometricPressure")
     }
 
     with open(LOG_FILE, "a") as f:
-        f.write(json.dumps(data) + "\n")
+        f.write(json.dumps(record) + "\n")
 
-    time.sleep(INTERVAL)
+    last_write = now
+
+
+iface = SerialInterface(PORT)
+pub.subscribe(handle, "meshtastic.receive")
+
+while True:
+    time.sleep(3600)
