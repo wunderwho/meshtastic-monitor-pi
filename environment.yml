@@ -12,12 +12,12 @@
     - name: Install required packages
       ansible.builtin.apt:
         name:
-          - i2c-tools
           - python3-smbus
+          - i2c-tools
         state: present
         update_cache: true
 
-    - name: Install BME680 dependency in monitor venv
+    - name: Install BME680 dependency in existing venv
       ansible.builtin.pip:
         name:
           - adafruit-circuitpython-bme680
@@ -45,7 +45,7 @@
         mode: "0644"
         content: |
           [Unit]
-          Description=Enclosure Environment Monitor
+          Description=Enclosure Environment Logger
           After=network.target
 
           [Service]

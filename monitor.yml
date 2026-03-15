@@ -94,14 +94,6 @@
         group: "{{ monitor_user }}"
         mode: "0644"
 
-    - name: Deploy position logger module
-      ansible.builtin.template:
-        src: templates/modules/position_logger.py.j2
-        dest: "{{ modules_path }}/position_logger.py"
-        owner: "{{ monitor_user }}"
-        group: "{{ monitor_user }}"
-        mode: "0644"
-
     - name: Install logrotate configuration for meshtastic monitor
       ansible.builtin.copy:
         dest: /etc/logrotate.d/meshtastic-monitor
@@ -111,8 +103,7 @@
         content: |
           {{ monitor_home }}/telemetry.log
           {{ monitor_home }}/device.log
-          {{ monitor_home }}/mesh.log
-          {{ monitor_home }}/position.log {
+          {{ monitor_home }}/mesh.log {
               daily
               rotate 14
               compress
