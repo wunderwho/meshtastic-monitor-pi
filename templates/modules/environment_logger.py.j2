@@ -8,39 +8,44 @@ from pubsub import pub
 LOG_JSON = "{{ monitor_home }}/environment.json"
 LOG_TEXT = "{{ monitor_home }}/environment.log"
 PORT = "{{ meshtastic_port }}"
+INTERVAL = {{ environment_log_interval | default(300) }}
 
 last_write = 0
-INTERVAL = 300
 
 
 def log_start():
     ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-    msg = f"{ts} environment-monitor started, waiting for telemetry"
+    line = f"{ts} | environment-monitor started | interval={INTERVAL}s | waiting for telemetry"
     with open(LOG_TEXT, "a") as f:
-        f.write(msg + "\n")
+        f.write(line + "\n")
 
 
 def write_record(env):
     ts_iso = datetime.utcnow().isoformat()
     ts_human = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
+    temperature = env.get("temperature")
+    humidity = env.get("relativeHumidity")
+    pressure = env.get("barometricPressure")
+    gas = env.get("gasResistance")
+
     record = {
         "timestamp": ts_iso,
-        "temperature": env.get("temperature"),
-        "humidity": env.get("relativeHumidity"),
-        "pressure": env.get("barometricPressure"),
-        "gas_resistance": env.get("gasResistance")
+        "temperature_c": temperature,
+        "humidity_percent": humidity,
+        "pressure_hpa": pressure,
+        "gas_resistance_ohm": gas
     }
 
     with open(LOG_JSON, "a") as f:
         f.write(json.dumps(record) + "\n")
 
     line = (
-        f"{ts_human} "
-        f"T={record['temperature']}C "
-        f"H={record['humidity']}% "
-        f"P={record['pressure']}hPa "
-        f"GAS={record['gas_resistance']}"
+        f"{ts_human} | "
+        f"Temp: {temperature:.2f} °C | "
+        f"Humidity: {humidity:.2f} % | "
+        f"Pressure: {pressure:.2f} hPa | "
+        f"Gas: {gas:.2f} Ω"
     )
 
     with open(LOG_TEXT, "a") as f:
