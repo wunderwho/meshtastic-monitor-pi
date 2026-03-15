@@ -19,7 +19,6 @@ MODULES = [
     "mesh_logger",
     "device_logger",
     "telemetry_logger",
-    "environment_logger",
     "position_logger"
 ]
 
@@ -51,7 +50,6 @@ def telemetry_loop(interface):
         time.sleep(TELEMETRY_INTERVAL)
 
 
-# CONNECT TO NODE
 iface = None
 
 if CONNECTION_TYPE.lower() == "tcp":
@@ -75,7 +73,6 @@ if TELEMETRY_ENABLED:
 print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} Connected via {CONNECTION_TYPE}. Monitoring...")
 
 
-# Keep process alive forever
 try:
     while True:
         time.sleep(3600)

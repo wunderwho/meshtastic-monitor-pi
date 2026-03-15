@@ -1,34 +1,28 @@
 import json
-import os
+import time
 from datetime import datetime
 
-def handle(packet, base_path, local_node_id):
-    d = packet.get("decoded", {})
-    port = d.get("portnum")
+import board
+import busio
+import adafruit_bme680
 
-    if port != "TELEMETRY_APP":
-        return
+LOG_FILE = "{{ monitor_home }}/environment.json"
+INTERVAL = 300
 
-    node_id = packet.get("fromId") or packet.get("from")
+i2c = busio.I2C(board.SCL, board.SDA)
+sensor = adafruit_bme680.Adafruit_BME680_I2C(i2c)
 
-    em = d.get("telemetry", {}).get("environmentMetrics", {})
-    if not em:
-        return
+sensor.sea_level_pressure = 1013.25
 
+while True:
     record = {
-        "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "type": "environment",
-        "node": node_id,
-        "temperature": em.get("temperature"),
-        "humidity": em.get("humidity"),
-        "pressure": em.get("barometricPressure")
+        "timestamp": datetime.utcnow().isoformat(),
+        "temperature": round(sensor.temperature, 2),
+        "humidity": round(sensor.relative_humidity, 2),
+        "pressure": round(sensor.pressure, 2)
     }
 
-    # include distance if monitor.py added it
-    if "distance" in packet:
-        record["distance"] = packet["distance"]
-
-    path = os.path.join(base_path, "environment.log")
-
-    with open(path, "a") as f:
+    with open(LOG_FILE, "a") as f:
         f.write(json.dumps(record) + "\n")
+
+    time.sleep(INTERVAL)

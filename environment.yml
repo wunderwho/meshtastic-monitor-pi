@@ -1,0 +1,69 @@
+---
+- name: Deploy enclosure environment logger
+  hosts: pis
+  become: true
+
+  vars:
+    monitor_home: "/home/{{ monitor_user }}"
+    venv_path: "{{ monitor_home }}/meshtastic-venv"
+
+  tasks:
+
+    - name: Install required packages
+      ansible.builtin.apt:
+        name:
+          - i2c-tools
+          - python3-smbus
+        state: present
+        update_cache: true
+
+    - name: Install BME680 dependency in monitor venv
+      ansible.builtin.pip:
+        name:
+          - adafruit-circuitpython-bme680
+        virtualenv: "{{ venv_path }}"
+
+    - name: Create environment log file
+      ansible.builtin.file:
+        path: "{{ monitor_home }}/environment.json"
+        state: touch
+        owner: "{{ monitor_user }}"
+        group: "{{ monitor_user }}"
+        mode: "0644"
+
+    - name: Deploy environment logger
+      ansible.builtin.template:
+        src: templates/modules/environment_logger.py.j2
+        dest: "{{ monitor_home }}/environment_logger.py"
+        owner: "{{ monitor_user }}"
+        group: "{{ monitor_user }}"
+        mode: "0755"
+
+    - name: Install environment monitoring service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/environment-monitor.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Enclosure Environment Monitor
+          After=network.target
+
+          [Service]
+          User={{ monitor_user }}
+          WorkingDirectory={{ monitor_home }}
+          ExecStart={{ venv_path }}/bin/python -u {{ monitor_home }}/environment_logger.py
+          Restart=always
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Enable and start environment monitor
+      ansible.builtin.systemd:
+        name: environment-monitor
+        enabled: true
+        state: started
