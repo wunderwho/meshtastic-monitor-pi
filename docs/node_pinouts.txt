@@ -1,0 +1,173 @@
+Node Pinouts Reference
+======================
+
+Boards in this node:
+
+• Raspberry Pi Zero 2 W
+• Heltec WiFi LoRa 32 V4
+• BME680 Environmental Sensor
+• UPS Power Board
+
+
+--------------------------------------------------
+Raspberry Pi Zero 2 W GPIO Header
+--------------------------------------------------
+
+Board orientation:
+
+USB ports on LEFT
+HDMI port on BOTTOM
+GPIO header on RIGHT
+
+
+LEFT COLUMN (odd pins)                        RIGHT COLUMN (even pins)
+
+(1) 3.3V                                      (2) 5V
+                                              <-- UPS 5V power input
+
+(3) GPIO2 SDA                                 (4) 5V
+    (UPS telemetry SDA – future)
+
+(5) GPIO3 SCL                                 (6) GND
+    (UPS telemetry SCL – future)                   <-- UPS ground
+
+(7) GPIO4                                     (8) GPIO14
+(9) GND                                       (10) GPIO15
+(11) GPIO17                                   (12) GPIO18
+(13) GPIO27                                   (14) GND
+(15) GPIO22                                   (16) GPIO23
+(17) 3.3V                                     (18) GPIO24
+(19) GPIO10                                   (20) GND
+(21) GPIO9                                    (22) GPIO25
+(23) GPIO11                                   (24) GPIO8
+(25) GND                                      (26) GPIO7
+(27) GPIO0                                    (28) GPIO1
+(29) GPIO5                                    (30) GND
+(31) GPIO6                                    (32) GPIO12
+(33) GPIO13                                   (34) GND
+(35) GPIO19                                   (36) GPIO16
+(37) GPIO26                                   (38) GPIO20
+(39) GND                                      (40) GPIO21
+
+
+PRIMARY DATA CONNECTION
+
+Heltec USB-C  --->  Pi USB data port
+
+Purpose:
+
+• Meshtastic telemetry stream
+• Environmental telemetry logging
+• Node monitoring
+
+
+
+--------------------------------------------------
+Heltec WiFi LoRa 32 V4
+--------------------------------------------------
+
+Board orientation:
+
+LoRa antenna IPEX connector at TOP
+USB connector at BOTTOM
+Pushbuttons at BOTTOM
+
+
+TOP SENSOR HEADER
+(located above the main board)
+
+LEFT COLUMN                         RIGHT COLUMN
+
+(1) GPIO15                          (1) GPIO17
+                                    <-- BME680 SDA (I2C data)
+
+(2) GPIO16                          (2) GPIO18
+                                    <-- BME680 SCL (I2C clock)
+
+
+
+LEFT HEADER (J3)                    RIGHT HEADER (J2)
+
+(1)  GND                             (1)  GND
+     <-- BME680 GND                       <-- UPS GND
+
+(2)  3V3                             (2)  5V
+     <-- BME680 VCC
+
+(3)  3V3                             (3)  VIN
+                                     <-- UPS 5V power
+
+(4)  GPIO37                          (4)  VIN
+(5)  GPIO46                          (5)  GPIO44
+(6)  GPIO42                          (6)  GPIO43
+(7)  GPIO41                          (7)  GPIO0
+(8)  GPIO40                          (8)  GPIO36
+(9)  GPIO39                          (9)  GPIO35
+(10) GPIO38                          (10) GPIO34
+(11) GPIO1                           (11) GPIO33
+(12) GPIO2                           (12) GPIO47
+(13) GPIO3                           (13) GPIO48
+(14) GPIO4                           (14) GPIO26
+(15) GPIO5                           (15) GPIO21
+(16) GPIO6                           (16) GPIO20
+(17) GPIO7                           (17) GPIO19
+(18) GPIO15                          (18) GPIO19
+
+
+
+--------------------------------------------------
+BME680 Environmental Sensor
+--------------------------------------------------
+
+Sensor header orientation:
+
+TOP
+
+(1) VCC  <-- Heltec 3V3
+(2) GND  <-- Heltec GND
+(3) SCL  <-- Heltec GPIO18
+(4) SDA  <-- Heltec GPIO17
+(5) SDO  <-- Not connected
+(6) CS   <-- Not connected
+
+BOTTOM
+
+
+
+--------------------------------------------------
+UPS Board
+--------------------------------------------------
+
+ACTIVE POWER CONNECTIONS
+
+UPS 5V  -> Pi Pin 2
+UPS GND -> Pi Pin 6
+
+UPS 5V  -> Heltec VIN
+UPS GND -> Heltec GND
+
+
+FUTURE TELEMETRY (NOT CURRENTLY CONNECTED)
+
+UPS SDA -> Pi Pin 3
+UPS SCL -> Pi Pin 5
+
+
+
+--------------------------------------------------
+Device Communication Flow
+--------------------------------------------------
+
+BME680
+   │
+   │ I2C
+   ▼
+Heltec ESP32 V4
+   │
+   │ USB Serial
+   ▼
+Raspberry Pi Zero 2 W
+   │
+   │ (future)
+   ▼
+UPS Telemetry

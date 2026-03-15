@@ -1,0 +1,49 @@
+Node Quick Repair Guide
+=======================
+
+If the node is opened and wiring is unclear.
+
+
+Power
+-----
+
+UPS 5V  -> Pi Pin 2
+UPS GND -> Pi Pin 6
+
+UPS 5V  -> Heltec VIN
+UPS GND -> Heltec GND
+
+
+Heltec to Pi
+------------
+
+Heltec USB-C -> Pi USB
+
+
+BME680 Sensor
+-------------
+
+VCC -> Heltec 3V3
+GND -> Heltec GND
+SCL -> Heltec GPIO18
+SDA -> Heltec GPIO17
+
+SDO -> not connected
+CS  -> not connected
+
+
+Future UPS Telemetry
+--------------------
+
+UPS SDA -> Pi Pin 3
+UPS SCL -> Pi Pin 5
+
+
+If telemetry fails
+------------------
+
+Check:
+
+• Heltec USB cable
+• BME680 SDA/SCL lines
+• UPS 5V supply

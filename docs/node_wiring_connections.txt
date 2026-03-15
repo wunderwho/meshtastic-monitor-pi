@@ -1,0 +1,70 @@
+Node Wiring Connections
+=======================
+
+
+--------------------------------------------------
+BME680 → Heltec V4
+--------------------------------------------------
+
+BME680 VCC  -> Heltec 3V3
+
+BME680 GND  -> Heltec GND
+
+BME680 SCL  -> Heltec GPIO18
+               (OLED_SCL / I2C)
+
+BME680 SDA  -> Heltec GPIO17
+               (OLED_SDA / I2C)
+
+BME680 SDO  -> Not connected
+
+BME680 CS   -> Not connected
+
+
+
+--------------------------------------------------
+Heltec V4 → Raspberry Pi
+--------------------------------------------------
+
+Heltec USB-C → Raspberry Pi USB data port
+
+Purpose:
+
+• Serial connection
+• Meshtastic telemetry
+• Pi logs telemetry data
+
+
+
+--------------------------------------------------
+UPS → Raspberry Pi (ACTIVE POWER)
+--------------------------------------------------
+
+UPS 5V  -> Pi Pin 2
+
+UPS GND -> Pi Pin 6
+
+This powers the Raspberry Pi.
+
+
+
+--------------------------------------------------
+UPS → Heltec V4 (ACTIVE POWER)
+--------------------------------------------------
+
+UPS 5V  -> Heltec VIN
+
+UPS GND -> Heltec GND
+
+
+
+--------------------------------------------------
+UPS → Raspberry Pi (FUTURE TELEMETRY)
+--------------------------------------------------
+
+UPS SDA -> Pi Pin 3
+
+UPS SCL -> Pi Pin 5
+
+Device: INA219 power monitor
+Bus: I2C-1
