@@ -9,27 +9,16 @@
 
   tasks:
 
-    - name: Install required packages
-      ansible.builtin.apt:
-        name:
-          - python3-smbus
-          - i2c-tools
-        state: present
-        update_cache: true
-
-    - name: Install BME680 dependency in existing venv
-      ansible.builtin.pip:
-        name:
-          - adafruit-circuitpython-bme680
-        virtualenv: "{{ venv_path }}"
-
-    - name: Create environment log file
+    - name: Ensure environment log files exist
       ansible.builtin.file:
-        path: "{{ monitor_home }}/environment.json"
+        path: "{{ item }}"
         state: touch
         owner: "{{ monitor_user }}"
         group: "{{ monitor_user }}"
         mode: "0644"
+      loop:
+        - "{{ monitor_home }}/environment.json"
+        - "{{ monitor_home }}/environment.log"
 
     - name: Deploy environment logger
       ansible.builtin.template:

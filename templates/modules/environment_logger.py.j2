@@ -5,21 +5,56 @@ from datetime import datetime
 from meshtastic.serial_interface import SerialInterface
 from pubsub import pub
 
-LOG_FILE = "{{ monitor_home }}/environment.json"
+LOG_JSON = "{{ monitor_home }}/environment.json"
+LOG_TEXT = "{{ monitor_home }}/environment.log"
 PORT = "{{ meshtastic_port }}"
 
 last_write = 0
 INTERVAL = 300
 
 
+def log_start():
+    ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    msg = f"{ts} environment-monitor started, waiting for telemetry"
+    with open(LOG_TEXT, "a") as f:
+        f.write(msg + "\n")
+
+
+def write_record(env):
+    ts_iso = datetime.utcnow().isoformat()
+    ts_human = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+
+    record = {
+        "timestamp": ts_iso,
+        "temperature": env.get("temperature"),
+        "humidity": env.get("relativeHumidity"),
+        "pressure": env.get("barometricPressure"),
+        "gas_resistance": env.get("gasResistance")
+    }
+
+    with open(LOG_JSON, "a") as f:
+        f.write(json.dumps(record) + "\n")
+
+    line = (
+        f"{ts_human} "
+        f"T={record['temperature']}C "
+        f"H={record['humidity']}% "
+        f"P={record['pressure']}hPa "
+        f"GAS={record['gas_resistance']}"
+    )
+
+    with open(LOG_TEXT, "a") as f:
+        f.write(line + "\n")
+
+
 def handle(packet, interface=None):
     global last_write
 
-    d = packet.get("decoded", {})
-    if d.get("portnum") != "TELEMETRY_APP":
+    decoded = packet.get("decoded", {})
+    if decoded.get("portnum") != "TELEMETRY_APP":
         return
 
-    env = d.get("telemetry", {}).get("environmentMetrics")
+    env = decoded.get("telemetry", {}).get("environmentMetrics")
     if not env:
         return
 
@@ -27,18 +62,11 @@ def handle(packet, interface=None):
     if now - last_write < INTERVAL:
         return
 
-    record = {
-        "timestamp": datetime.utcnow().isoformat(),
-        "temperature": env.get("temperature"),
-        "humidity": env.get("relativeHumidity"),
-        "pressure": env.get("barometricPressure")
-    }
-
-    with open(LOG_FILE, "a") as f:
-        f.write(json.dumps(record) + "\n")
-
+    write_record(env)
     last_write = now
 
+
+log_start()
 
 iface = SerialInterface(PORT)
 pub.subscribe(handle, "meshtastic.receive")
