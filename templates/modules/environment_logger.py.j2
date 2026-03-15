@@ -1,65 +1,21 @@
 import json
+import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
-from meshtastic.serial_interface import SerialInterface
-from pubsub import pub
-
-LOG_JSON = "{{ monitor_home }}/environment.json"
-LOG_TEXT = "{{ monitor_home }}/environment.log"
-PORT = "{{ meshtastic_port }}"
 INTERVAL = {{ environment_log_interval | default(300) }}
 
 last_write = 0
 
 
-def log_start():
-    ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-    line = f"{ts} | environment-monitor started | interval={INTERVAL}s | waiting for telemetry"
-    with open(LOG_TEXT, "a") as f:
-        f.write(line + "\n")
-
-
-def write_record(env):
-    ts_iso = datetime.utcnow().isoformat()
-    ts_human = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-
-    temperature = env.get("temperature")
-    humidity = env.get("relativeHumidity")
-    pressure = env.get("barometricPressure")
-    gas = env.get("gasResistance")
-
-    record = {
-        "timestamp": ts_iso,
-        "temperature_c": temperature,
-        "humidity_percent": humidity,
-        "pressure_hpa": pressure,
-        "gas_resistance_ohm": gas
-    }
-
-    with open(LOG_JSON, "a") as f:
-        f.write(json.dumps(record) + "\n")
-
-    line = (
-        f"{ts_human} | "
-        f"Temp: {temperature:.2f} °C | "
-        f"Humidity: {humidity:.2f} % | "
-        f"Pressure: {pressure:.2f} hPa | "
-        f"Gas: {gas:.2f} Ω"
-    )
-
-    with open(LOG_TEXT, "a") as f:
-        f.write(line + "\n")
-
-
-def handle(packet, interface=None):
+def handle(packet, base_path, local_node_id):
     global last_write
 
-    decoded = packet.get("decoded", {})
-    if decoded.get("portnum") != "TELEMETRY_APP":
+    d = packet.get("decoded", {})
+    if d.get("portnum") != "TELEMETRY_APP":
         return
 
-    env = decoded.get("telemetry", {}).get("environmentMetrics")
+    env = d.get("telemetry", {}).get("environmentMetrics")
     if not env:
         return
 
@@ -67,14 +23,36 @@ def handle(packet, interface=None):
     if now - last_write < INTERVAL:
         return
 
-    write_record(env)
+    temperature = env.get("temperature")
+    humidity = env.get("relativeHumidity")
+    pressure = env.get("barometricPressure")
+    gas = env.get("gasResistance")
+
+    ts = datetime.now(timezone.utc)
+
+    record = {
+        "timestamp": ts.isoformat(),
+        "temperature_c": temperature,
+        "humidity_percent": humidity,
+        "pressure_hpa": pressure,
+        "gas_resistance_ohm": gas
+    }
+
+    json_path = os.path.join(base_path, "environment.json")
+    text_path = os.path.join(base_path, "environment.log")
+
+    with open(json_path, "a") as f:
+        f.write(json.dumps(record) + "\n")
+
+    line = (
+        f"{ts.strftime('%Y-%m-%d %H:%M:%S')} | "
+        f"Temp {temperature:.2f} °C | "
+        f"Humidity {humidity:.2f} % | "
+        f"Pressure {pressure:.2f} hPa | "
+        f"Gas {gas:.2f} Ω"
+    )
+
+    with open(text_path, "a") as f:
+        f.write(line + "\n")
+
     last_write = now
-
-
-log_start()
-
-iface = SerialInterface(PORT)
-pub.subscribe(handle, "meshtastic.receive")
-
-while True:
-    time.sleep(3600)
