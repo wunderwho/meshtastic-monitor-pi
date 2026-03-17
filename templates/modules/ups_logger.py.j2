@@ -7,7 +7,9 @@ from adafruit_ina219 import INA219
 
 BASE_PATH = "{{ monitor_home }}"
 LOG_FILE = os.path.join(BASE_PATH, "ups.log")
-UPS_INTERVAL = {{ telemetry_interval }}
+
+ENABLED = {{ ups_enabled | default(True) }}
+UPS_INTERVAL = {{ ups_interval | default(300) }}
 
 FULL_VOLTAGE = 12.6
 EMPTY_VOLTAGE = 9.6
@@ -29,8 +31,7 @@ def watchdog_ping():
 
 def estimate_percentage(voltage):
     pct = (voltage - EMPTY_VOLTAGE) / (FULL_VOLTAGE - EMPTY_VOLTAGE) * 100
-    pct = max(0, min(100, pct))
-    return pct
+    return max(0, min(100, pct))
 
 
 def capacity_wh_from_pct(pct):
@@ -56,6 +57,11 @@ def find_ups_bus():
             except Exception:
                 pass
     return None
+
+
+if not ENABLED:
+    while True:
+        time.sleep(3600)
 
 
 bus = None

@@ -10,21 +10,26 @@ import importlib
 CONNECTION_TYPE = "{{ meshtastic_connection }}"
 HOST = "{{ meshtastic_host | default('') }}"
 PORT = "{{ meshtastic_port | default('') }}"
+
 TELEMETRY_ENABLED = {{ telemetry_enabled | default(True) }}
 TELEMETRY_INTERVAL = int("{{ telemetry_interval | default(300) }}")
+
 LOCAL_NODE_ID = "{{ local_node_id | default('') }}"
 BASE_PATH = "{{ monitor_home }}"
 
 MODULES = [
-    "mesh_logger",
-    "device_logger",
-    "telemetry_logger",
-    "environment_logger"
+    ("mesh_logger", True),
+    ("device_logger", {{ device_enabled | default(True) }}),
+    ("telemetry_logger", {{ telemetry_enabled | default(True) }}),
+    ("environment_logger", {{ environment_enabled | default(True) }}),
 ]
 
 loaded_modules = []
 
-for name in MODULES:
+for name, enabled in MODULES:
+    if not enabled:
+        print(f"Skipping module (disabled): {name}")
+        continue
     try:
         mod = importlib.import_module(f"modules.{name}")
         loaded_modules.append(mod)
@@ -54,10 +59,8 @@ iface = None
 
 if CONNECTION_TYPE.lower() == "tcp":
     iface = TCPInterface(hostname=HOST)
-
 elif CONNECTION_TYPE.lower() == "serial":
     iface = SerialInterface(PORT)
-
 else:
     raise ValueError("meshtastic_connection must be 'tcp' or 'serial'")
 

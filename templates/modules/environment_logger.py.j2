@@ -3,13 +3,21 @@ import os
 import time
 from datetime import datetime, timezone
 
+ENABLED = {{ environment_enabled | default(True) }}
 INTERVAL = {{ environment_log_interval | default(300) }}
 
 last_write = 0
 
 
+def fmt(v, unit):
+    return f"{v:.2f} {unit}" if v is not None else "None"
+
+
 def handle(packet, base_path, local_node_id):
     global last_write
+
+    if not ENABLED:
+        return
 
     d = packet.get("decoded", {})
     if d.get("portnum") != "TELEMETRY_APP":
@@ -46,10 +54,10 @@ def handle(packet, base_path, local_node_id):
 
     line = (
         f"{ts.strftime('%Y-%m-%d %H:%M:%S')} | "
-        f"Temp {temperature:.2f} °C | "
-        f"Humidity {humidity:.2f} % | "
-        f"Pressure {pressure:.2f} hPa | "
-        f"Gas {gas:.2f} Ω"
+        f"Temp {fmt(temperature, '°C')} | "
+        f"Humidity {fmt(humidity, '%')} | "
+        f"Pressure {fmt(pressure, 'hPa')} | "
+        f"Gas {fmt(gas, 'Ω')}"
     )
 
     with open(text_path, "a") as f:

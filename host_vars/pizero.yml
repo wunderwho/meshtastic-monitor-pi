@@ -1,4 +1,0 @@
-monitor_user: "{{ vault_monitor_user }}"
-
-telemetry_enabled: true
-telemetry_interval: 300

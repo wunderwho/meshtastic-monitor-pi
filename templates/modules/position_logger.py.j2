@@ -1,13 +1,29 @@
 import json
 import os
+import time
 from datetime import datetime
 
+ENABLED = {{ position_enabled | default(True) }}
+INTERVAL = {{ position_interval | default(300) }}
+
+last_write = 0
+
+
 def handle(packet, base_path, local_node_id):
+    global last_write
+
+    if not ENABLED:
+        return
+
     d = packet.get("decoded", {})
     port = d.get("portnum")
     node_id = packet.get("fromId") or packet.get("from")
 
     if node_id != local_node_id or port != "POSITION_APP":
+        return
+
+    now = time.time()
+    if now - last_write < INTERVAL:
         return
 
     pos = d.get("position", {})
@@ -26,3 +42,5 @@ def handle(packet, base_path, local_node_id):
     path = os.path.join(base_path, "position.log")
     with open(path, "a") as f:
         f.write(json.dumps(record) + "\n")
+
+    last_write = now
