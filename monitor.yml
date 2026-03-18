@@ -63,10 +63,10 @@
         mode: "0644"
       notify: Restart meshtastic monitor
 
-    - name: Deploy mesh logger module
+    - name: Deploy system logger module
       ansible.builtin.template:
-        src: templates/modules/mesh_logger.py.j2
-        dest: "{{ modules_path }}/mesh_logger.py"
+        src: templates/modules/system_logger.py.j2
+        dest: "{{ modules_path }}/system_logger.py"
         owner: "{{ monitor_user }}"
         group: "{{ monitor_user }}"
         mode: "0644"
@@ -99,10 +99,37 @@
         mode: "0644"
       notify: Restart meshtastic monitor
 
+    - name: Deploy nodeinfo logger module
+      ansible.builtin.template:
+        src: templates/modules/nodeinfo_logger.py.j2
+        dest: "{{ modules_path }}/nodeinfo_logger.py"
+        owner: "{{ monitor_user }}"
+        group: "{{ monitor_user }}"
+        mode: "0644"
+      notify: Restart meshtastic monitor
+
+    - name: Deploy text logger module
+      ansible.builtin.template:
+        src: templates/modules/text_logger.py.j2
+        dest: "{{ modules_path }}/text_logger.py"
+        owner: "{{ monitor_user }}"
+        group: "{{ monitor_user }}"
+        mode: "0644"
+      notify: Restart meshtastic monitor
+
     - name: Deploy position logger module
       ansible.builtin.template:
         src: templates/modules/position_logger.py.j2
         dest: "{{ modules_path }}/position_logger.py"
+        owner: "{{ monitor_user }}"
+        group: "{{ monitor_user }}"
+        mode: "0644"
+      notify: Restart meshtastic monitor
+
+    - name: Deploy unknown logger module
+      ansible.builtin.template:
+        src: templates/modules/unknown_logger.py.j2
+        dest: "{{ modules_path }}/unknown_logger.py"
         owner: "{{ monitor_user }}"
         group: "{{ monitor_user }}"
         mode: "0644"
@@ -128,9 +155,7 @@
           {% endif %}
 
           ExecStart={{ venv_path }}/bin/python -u {{ monitor_home }}/monitor.py
-
-          # SAFE: no % formatting here
-          ExecStopPost=/bin/sh -c 'echo STOPPED >> {{ monitor_home }}/device.log'
+          ExecStopPost=/bin/sh -c 'echo STOPPED >> {{ monitor_home }}/system.log'
 
           Restart=always
           RestartSec=5

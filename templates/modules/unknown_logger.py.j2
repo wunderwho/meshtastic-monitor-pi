@@ -1,15 +1,30 @@
-import time
 from modules.common_logger import write, ts
+import time
 
-CONFIG = {"interval": {{ position_interval | default(300) }}}
+KNOWN_PORTS = {
+    "TELEMETRY_APP",
+    "NODEINFO_APP",
+    "TEXT_MESSAGE_APP",
+    "POSITION_APP"
+}
+
+CONFIG = {"interval": {{ unknown_interval | default(0) }}}
 last_write = {}
 
 def set_config(cfg):
     CONFIG.update(cfg)
 
 def handle(packet, base_path, local_node_id):
-    d = packet.get("decoded", {})
-    if d.get("portnum") != "POSITION_APP":
+    d = packet.get("decoded")
+
+    # --- IGNORE EMPTY / UNDECODED ---
+    if not d:
+        return
+
+    port = d.get("portnum")
+
+    # --- IGNORE KNOWN TYPES ---
+    if port in KNOWN_PORTS:
         return
 
     node_id = packet.get("fromId") or packet.get("from")
@@ -19,20 +34,15 @@ def handle(packet, base_path, local_node_id):
     if CONFIG["interval"] > 0 and (now - last) < CONFIG["interval"]:
         return
 
-    pos = d.get("position", {})
-
     record = {
         "timestamp": ts().isoformat(),
-        "type": "position",
+        "type": "unknown",
         "node_id": node_id,
         "data": {
-            "latitude": pos.get("latitude"),
-            "longitude": pos.get("longitude"),
-            "altitude": pos.get("altitude"),
-            "ground_speed": pos.get("groundSpeed"),
-            "precision_bits": pos.get("precisionBits")
+            "port": port,
+            "raw": d
         }
     }
 
-    write(base_path, "position", record)
+    write(base_path, "unknown", record)
     last_write[node_id] = now

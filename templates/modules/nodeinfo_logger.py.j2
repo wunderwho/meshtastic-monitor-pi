@@ -1,7 +1,7 @@
 import time
 from modules.common_logger import write, ts
 
-CONFIG = {"interval": {{ telemetry_interval | default(300) }}}
+CONFIG = {"interval": {{ nodeinfo_interval | default(300) }}}
 last_write = {}
 
 def set_config(cfg):
@@ -9,7 +9,7 @@ def set_config(cfg):
 
 def handle(packet, base_path, local_node_id):
     d = packet.get("decoded", {})
-    if d.get("portnum") != "TELEMETRY_APP":
+    if d.get("portnum") != "NODEINFO_APP":
         return
 
     node_id = packet.get("fromId") or packet.get("from")
@@ -21,22 +21,19 @@ def handle(packet, base_path, local_node_id):
     if CONFIG["interval"] > 0 and (now - last) < CONFIG["interval"]:
         return
 
-    dm = d.get("telemetry", {}).get("deviceMetrics", {})
-    if not dm:
-        return
+    user = d.get("user", {})
 
     record = {
         "timestamp": ts().isoformat(),
-        "type": "telemetry",
+        "type": "nodeinfo",
         "node_id": node_id,
         "data": {
-            "battery": dm.get("batteryLevel"),
-            "voltage": dm.get("voltage"),
-            "uptime_seconds": dm.get("uptimeSeconds"),
-            "channel_utilization": dm.get("channelUtilization"),
-            "air_util_tx": dm.get("airUtilTx")
+            "long_name": user.get("longName"),
+            "short_name": user.get("shortName"),
+            "hw_model": user.get("hwModel"),
+            "role": user.get("role")
         }
     }
 
-    write(base_path, "telemetry", record)
+    write(base_path, "nodeinfo", record)
     last_write[node_id] = now

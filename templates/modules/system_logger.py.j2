@@ -1,0 +1,16 @@
+from modules.common_logger import write, ts
+
+def set_config(cfg):
+    pass  # no interval, always log
+
+def log(base_path, node_id, message):
+    record = {
+        "timestamp": ts().isoformat(),
+        "type": "system",
+        "node_id": node_id,
+        "data": {
+            "message": message
+        }
+    }
+
+    write(base_path, "system", record)

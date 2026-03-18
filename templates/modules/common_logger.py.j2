@@ -8,7 +8,10 @@ def ts():
 def to_local(iso):
     dt = datetime.fromisoformat(iso)
     local = dt.astimezone()
-    return local.strftime("%Y-%m-%d %H:%M:%S"), local.strftime("%Z"), local.strftime("%z")
+    tz = local.strftime("%Z")
+    off = local.strftime("%z")
+    off = f"{off[:3]}:{off[3:]}" if off else ""
+    return local.strftime("%Y-%m-%d %H:%M:%S"), tz, off
 
 def write(base_path, name, record):
     jp = os.path.join(base_path, f"{name}.json")
@@ -18,7 +21,6 @@ def write(base_path, name, record):
         f.write(json.dumps(record) + "\n")
 
     ts_str, tz, off = to_local(record["timestamp"])
-    off = f"{off[:3]}:{off[3:]}" if off else ""
 
     parts = [f"{ts_str} {tz} ({off})", f"type={record['type']}", f"node={record['node_id']}"]
     for k, v in record["data"].items():

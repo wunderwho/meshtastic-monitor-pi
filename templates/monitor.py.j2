@@ -6,47 +6,58 @@ from datetime import datetime
 import time
 import threading
 import importlib
-import os
 
 CONNECTION_TYPE = "{{ meshtastic_connection }}"
 HOST = "{{ meshtastic_host | default('') }}"
 PORT = "{{ meshtastic_port | default('') }}"
 
-TELEMETRY_ENABLED = {{ telemetry_enabled | default(True) }}
-TELEMETRY_INTERVAL = int("{{ telemetry_interval | default(300) }}")
-
 LOCAL_NODE_ID = "{{ local_node_id | default('') }}"
 BASE_PATH = "{{ monitor_home }}"
 
-DEVICE_LOG = os.path.join(BASE_PATH, "device.log")
+# --- ENABLE FLAGS ---
+DEVICE_ENABLED = {{ device_enabled | default(True) }}
+TELEMETRY_ENABLED = {{ telemetry_enabled | default(True) }}
+ENVIRONMENT_ENABLED = {{ environment_enabled | default(True) }}
+POSITION_ENABLED = {{ position_enabled | default(False) }}
+NODEINFO_ENABLED = {{ nodeinfo_enabled | default(True) }}
+TEXT_ENABLED = {{ text_enabled | default(True) }}
+UNKNOWN_ENABLED = {{ unknown_enabled | default(True) }}
+
+# --- INTERVALS ---
+DEVICE_INTERVAL = {{ device_interval | default(300) }}
+TELEMETRY_INTERVAL = {{ telemetry_interval | default(300) }}
+ENVIRONMENT_INTERVAL = {{ environment_log_interval | default(300) }}
+POSITION_INTERVAL = {{ position_interval | default(300) }}
+NODEINFO_INTERVAL = {{ nodeinfo_interval | default(300) }}
+TEXT_INTERVAL = {{ text_interval | default(0) }}        # 0 = realtime
+UNKNOWN_INTERVAL = {{ unknown_interval | default(0) }}  # 0 = realtime
 
 
-def now_local_str():
+def now_record(msg):
     dt = datetime.now().astimezone()
-    tz = dt.strftime("%Z")
-    off = dt.strftime("%z")
-    off = f"{off[:3]}:{off[3:]}" if off else ""
-    return dt.strftime("%Y-%m-%d %H:%M:%S") + f" {tz} ({off})"
+    return {
+        "timestamp": dt.isoformat(),
+        "type": "system",
+        "node_id": LOCAL_NODE_ID,
+        "data": {"message": msg}
+    }
 
 
-def log_system(msg):
-    line = f"{now_local_str()} type=SYSTEM node={LOCAL_NODE_ID} msg={msg}"
-    with open(DEVICE_LOG, "a") as f:
-        f.write(line + "\n")
+def write_system(msg):
+    from modules.common_logger import write
+    write(BASE_PATH, "system", now_record(msg))
 
 
-# --- Detect restart vs start ---
-if os.path.exists(DEVICE_LOG):
-    log_system("RESTARTING meshtastic-monitor")
-else:
-    log_system("STARTING meshtastic-monitor")
-
+write_system("STARTING meshtastic-monitor")
 
 MODULES = [
-    ("mesh_logger", True),
-    ("device_logger", {{ device_enabled | default(True) }}),
-    ("telemetry_logger", {{ telemetry_enabled | default(True) }}),
-    ("environment_logger", {{ environment_enabled | default(True) }}),
+    ("device_logger", DEVICE_ENABLED),
+    ("telemetry_logger", TELEMETRY_ENABLED),
+    ("environment_logger", ENVIRONMENT_ENABLED),
+    ("nodeinfo_logger", NODEINFO_ENABLED),
+    ("text_logger", TEXT_ENABLED),
+    ("position_logger", POSITION_ENABLED),
+    ("unknown_logger", UNKNOWN_ENABLED),
 ]
 
 loaded_modules = []
@@ -55,22 +66,20 @@ for name, enabled in MODULES:
     if not enabled:
         continue
     mod = importlib.import_module(f"modules.{name}")
+
+    # pass interval config if module supports it
+    if hasattr(mod, "set_config"):
+        mod.set_config({
+            "interval": globals().get(f"{name.split('_')[0].upper()}_INTERVAL", 0)
+        })
+
     loaded_modules.append(mod)
-    log_system(f"module_loaded={name}")
+    write_system(f"module_loaded={name}")
 
 
 def on_receive(packet, interface=None):
     for mod in loaded_modules:
         mod.handle(packet, BASE_PATH, LOCAL_NODE_ID)
-
-
-def telemetry_loop(interface):
-    while True:
-        try:
-            interface.sendTelemetry()
-        except Exception:
-            pass
-        time.sleep(TELEMETRY_INTERVAL)
 
 
 if CONNECTION_TYPE.lower() == "tcp":
@@ -82,11 +91,7 @@ else:
 pub.subscribe(on_receive, "meshtastic.receive")
 
 
-if TELEMETRY_ENABLED:
-    threading.Thread(target=telemetry_loop, args=(iface,), daemon=True).start()
-
-
-log_system(f"connected={CONNECTION_TYPE}")
+write_system(f"connected={CONNECTION_TYPE}")
 
 
 while True:

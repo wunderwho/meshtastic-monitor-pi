@@ -1,0 +1,23 @@
+from modules.common_logger import write, ts
+
+def set_config(cfg):
+    pass  # realtime only
+
+def handle(packet, base_path, local_node_id):
+    d = packet.get("decoded", {})
+    if d.get("portnum") != "TEXT_MESSAGE_APP":
+        return
+
+    node_id = packet.get("fromId") or packet.get("from")
+    txt = d.get("text", "")
+
+    record = {
+        "timestamp": ts().isoformat(),
+        "type": "text",
+        "node_id": node_id,
+        "data": {
+            "message": txt
+        }
+    }
+
+    write(base_path, "text", record)

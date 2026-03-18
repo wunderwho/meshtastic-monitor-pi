@@ -1,32 +1,28 @@
 monitor_user: "{{ vault_monitor_user }}"
 
 ## --- Module Enables ---
-telemetry_enabled: true
 device_enabled: true
 environment_enabled: true
-position_enabled: false
+telemetry_enabled: true
+position_enabled: true
+nodeinfo_enabled: true
+text_enabled: true
+unknown_enabled: true
 ups_enabled: false
 
 ## --- Intervals (seconds) ---
-## mesh_logger = real-time (no interval)
-telemetry_interval: 300
 device_interval: 300
 environment_log_interval: 300
+telemetry_interval: 300
 position_interval: 300
+nodeinfo_interval: 300
+text_interval: 0
+unknown_interval: 0
 ups_interval: 300
 
 ## --- Connection ---
-## OPTIONS ARE TCP or SERIAL
 meshtastic_connection: serial
-
-## FOR TCP CONNECTIONS
-#meshtastic_host: NODE_IP
-#meshtastic_port: unused
-
-## VARIOUS SERIAL CONNECTIONS
-#meshtastic_port: /dev/ttyUSB0
-#meshtastic_port: /dev/serial0
 meshtastic_port: /dev/ttyACM0
 
-## --- Monitored node information ---
+## --- Monitored node ---
 local_node_id: "!49b44a44"

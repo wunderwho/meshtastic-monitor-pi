@@ -1,46 +1,41 @@
 import time
 from modules.common_logger import write, ts
 
-ENABLED = {{ environment_enabled | default(True) }}
-INTERVAL = {{ environment_log_interval | default(300) }}
+CONFIG = {"interval": {{ environment_log_interval | default(300) }}}
+last_write = {}
 
-last_write = 0
-
+def set_config(cfg):
+    CONFIG.update(cfg)
 
 def handle(packet, base_path, local_node_id):
-    global last_write
-
-    if not ENABLED:
-        return
-
     d = packet.get("decoded", {})
     if d.get("portnum") != "TELEMETRY_APP":
         return
 
-    env = d.get("telemetry", {}).get("environmentMetrics")
-    if not env:
+    node_id = packet.get("fromId") or packet.get("from")
+    if node_id != local_node_id:
         return
 
     now = time.time()
-    if now - last_write < INTERVAL:
+    last = last_write.get(node_id, 0)
+    if CONFIG["interval"] > 0 and (now - last) < CONFIG["interval"]:
         return
 
-    node_id = packet.get("fromId") or packet.get("from")
-
-    dt = ts()
+    em = d.get("telemetry", {}).get("environmentMetrics", {})
+    if not em:
+        return
 
     record = {
-        "timestamp": dt.isoformat(),
+        "timestamp": ts().isoformat(),
         "type": "environment",
         "node_id": node_id,
         "data": {
-            "temperature_c": env.get("temperature"),
-            "humidity_percent": env.get("relativeHumidity"),
-            "pressure_hpa": env.get("barometricPressure"),
-            "gas_resistance_ohm": env.get("gasResistance")
+            "temperature_c": em.get("temperature"),
+            "humidity_percent": em.get("relativeHumidity"),
+            "pressure_hpa": em.get("barometricPressure"),
+            "gas_resistance_ohm": em.get("gasResistance")
         }
     }
 
     write(base_path, "environment", record)
-
-    last_write = now
+    last_write[node_id] = now
