@@ -6,6 +6,7 @@ from datetime import datetime
 import time
 import threading
 import importlib
+import os
 
 CONNECTION_TYPE = "{{ meshtastic_connection }}"
 HOST = "{{ meshtastic_host | default('') }}"
@@ -16,6 +17,30 @@ TELEMETRY_INTERVAL = int("{{ telemetry_interval | default(300) }}")
 
 LOCAL_NODE_ID = "{{ local_node_id | default('') }}"
 BASE_PATH = "{{ monitor_home }}"
+
+DEVICE_LOG = os.path.join(BASE_PATH, "device.log")
+
+
+def now_local_str():
+    dt = datetime.now().astimezone()
+    tz = dt.strftime("%Z")
+    off = dt.strftime("%z")
+    off = f"{off[:3]}:{off[3:]}" if off else ""
+    return dt.strftime("%Y-%m-%d %H:%M:%S") + f" {tz} ({off})"
+
+
+def log_system(msg):
+    line = f"{now_local_str()} type=SYSTEM node={LOCAL_NODE_ID} msg={msg}"
+    with open(DEVICE_LOG, "a") as f:
+        f.write(line + "\n")
+
+
+# --- Detect restart vs start ---
+if os.path.exists(DEVICE_LOG):
+    log_system("RESTARTING meshtastic-monitor")
+else:
+    log_system("STARTING meshtastic-monitor")
+
 
 MODULES = [
     ("mesh_logger", True),
@@ -28,56 +53,41 @@ loaded_modules = []
 
 for name, enabled in MODULES:
     if not enabled:
-        print(f"Skipping module (disabled): {name}")
         continue
-    try:
-        mod = importlib.import_module(f"modules.{name}")
-        loaded_modules.append(mod)
-        print(f"Loaded module: {name}")
-    except Exception as e:
-        print(f"Module load failed: {name} -> {e}")
+    mod = importlib.import_module(f"modules.{name}")
+    loaded_modules.append(mod)
+    log_system(f"module_loaded={name}")
 
 
 def on_receive(packet, interface=None):
     for mod in loaded_modules:
-        try:
-            mod.handle(packet, BASE_PATH, LOCAL_NODE_ID)
-        except Exception as e:
-            print(f"Module error in {mod.__name__}: {e}")
+        mod.handle(packet, BASE_PATH, LOCAL_NODE_ID)
 
 
 def telemetry_loop(interface):
     while True:
         try:
             interface.sendTelemetry()
-        except Exception as e:
-            print(f"Telemetry send failed: {e}")
+        except Exception:
+            pass
         time.sleep(TELEMETRY_INTERVAL)
 
 
-iface = None
-
 if CONNECTION_TYPE.lower() == "tcp":
     iface = TCPInterface(hostname=HOST)
-elif CONNECTION_TYPE.lower() == "serial":
-    iface = SerialInterface(PORT)
 else:
-    raise ValueError("meshtastic_connection must be 'tcp' or 'serial'")
+    iface = SerialInterface(PORT)
 
 
 pub.subscribe(on_receive, "meshtastic.receive")
 
 
 if TELEMETRY_ENABLED:
-    t = threading.Thread(target=telemetry_loop, args=(iface,), daemon=True)
-    t.start()
+    threading.Thread(target=telemetry_loop, args=(iface,), daemon=True).start()
 
 
-print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} Connected via {CONNECTION_TYPE}. Monitoring...")
+log_system(f"connected={CONNECTION_TYPE}")
 
 
-try:
-    while True:
-        time.sleep(3600)
-except KeyboardInterrupt:
-    pass
+while True:
+    time.sleep(3600)

@@ -1,16 +1,10 @@
-import json
-import os
 import time
-from datetime import datetime, timezone
+from modules.common_logger import write, ts
 
 ENABLED = {{ environment_enabled | default(True) }}
 INTERVAL = {{ environment_log_interval | default(300) }}
 
 last_write = 0
-
-
-def fmt(v, unit):
-    return f"{v:.2f} {unit}" if v is not None else "None"
 
 
 def handle(packet, base_path, local_node_id):
@@ -31,36 +25,22 @@ def handle(packet, base_path, local_node_id):
     if now - last_write < INTERVAL:
         return
 
-    temperature = env.get("temperature")
-    humidity = env.get("relativeHumidity")
-    pressure = env.get("barometricPressure")
-    gas = env.get("gasResistance")
+    node_id = packet.get("fromId") or packet.get("from")
 
-    ts = datetime.now(timezone.utc)
+    dt = ts()
 
     record = {
-        "timestamp": ts.isoformat(),
-        "temperature_c": temperature,
-        "humidity_percent": humidity,
-        "pressure_hpa": pressure,
-        "gas_resistance_ohm": gas
+        "timestamp": dt.isoformat(),
+        "type": "environment",
+        "node_id": node_id,
+        "data": {
+            "temperature_c": env.get("temperature"),
+            "humidity_percent": env.get("relativeHumidity"),
+            "pressure_hpa": env.get("barometricPressure"),
+            "gas_resistance_ohm": env.get("gasResistance")
+        }
     }
 
-    json_path = os.path.join(base_path, "environment.json")
-    text_path = os.path.join(base_path, "environment.log")
-
-    with open(json_path, "a") as f:
-        f.write(json.dumps(record) + "\n")
-
-    line = (
-        f"{ts.strftime('%Y-%m-%d %H:%M:%S')} | "
-        f"Temp {fmt(temperature, '°C')} | "
-        f"Humidity {fmt(humidity, '%')} | "
-        f"Pressure {fmt(pressure, 'hPa')} | "
-        f"Gas {fmt(gas, 'Ω')}"
-    )
-
-    with open(text_path, "a") as f:
-        f.write(line + "\n")
+    write(base_path, "environment", record)
 
     last_write = now

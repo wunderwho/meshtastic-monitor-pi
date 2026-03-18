@@ -1,8 +1,12 @@
-import json
-import os
-from datetime import datetime
+from modules.common_logger import write, ts
+
+ENABLED = {{ telemetry_enabled | default(True) }}
+
 
 def handle(packet, base_path, local_node_id):
+    if not ENABLED:
+        return
+
     d = packet.get("decoded", {})
     port = d.get("portnum")
     node_id = packet.get("fromId") or packet.get("from")
@@ -13,12 +17,20 @@ def handle(packet, base_path, local_node_id):
     if port != "NODEINFO_APP":
         return
 
+    user = d.get("user", {})
+
+    dt = ts()
+
     record = {
-        "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "timestamp": dt.isoformat(),
         "type": "nodeinfo",
-        "data": d.get("user", {})
+        "node_id": node_id,
+        "data": {
+            "long_name": user.get("longName"),
+            "short_name": user.get("shortName"),
+            "hw_model": user.get("hwModel"),
+            "role": user.get("role")
+        }
     }
 
-    path = os.path.join(base_path, "telemetry.log")
-    with open(path, "a") as f:
-        f.write(json.dumps(record) + "\n")
+    write(base_path, "telemetry", record)

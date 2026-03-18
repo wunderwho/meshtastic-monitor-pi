@@ -45,23 +45,6 @@
           - pyqrcode
         virtualenv: "{{ venv_path }}"
 
-    - name: Verify meshtastic CLI exists
-      ansible.builtin.stat:
-        path: "{{ venv_path }}/bin/meshtastic"
-      register: meshtastic_cli
-
-    - name: Fail if CLI not present
-      ansible.builtin.fail:
-        msg: "Meshtastic CLI not installed inside virtualenv."
-      when: not meshtastic_cli.stat.exists
-
-    - name: Expose meshtastic CLI system-wide
-      ansible.builtin.file:
-        src: "{{ venv_path }}/bin/meshtastic"
-        dest: /usr/local/bin/meshtastic
-        state: link
-        force: true
-
     - name: Deploy monitor core
       ansible.builtin.template:
         src: templates/monitor.py.j2
@@ -69,6 +52,16 @@
         owner: "{{ monitor_user }}"
         group: "{{ monitor_user }}"
         mode: "0755"
+      notify: Restart meshtastic monitor
+
+    - name: Deploy common logger module
+      ansible.builtin.template:
+        src: templates/modules/common_logger.py.j2
+        dest: "{{ modules_path }}/common_logger.py"
+        owner: "{{ monitor_user }}"
+        group: "{{ monitor_user }}"
+        mode: "0644"
+      notify: Restart meshtastic monitor
 
     - name: Deploy mesh logger module
       ansible.builtin.template:
@@ -77,6 +70,7 @@
         owner: "{{ monitor_user }}"
         group: "{{ monitor_user }}"
         mode: "0644"
+      notify: Restart meshtastic monitor
 
     - name: Deploy device logger module
       ansible.builtin.template:
@@ -85,6 +79,7 @@
         owner: "{{ monitor_user }}"
         group: "{{ monitor_user }}"
         mode: "0644"
+      notify: Restart meshtastic monitor
 
     - name: Deploy telemetry logger module
       ansible.builtin.template:
@@ -93,6 +88,7 @@
         owner: "{{ monitor_user }}"
         group: "{{ monitor_user }}"
         mode: "0644"
+      notify: Restart meshtastic monitor
 
     - name: Deploy environment logger module
       ansible.builtin.template:
@@ -101,30 +97,16 @@
         owner: "{{ monitor_user }}"
         group: "{{ monitor_user }}"
         mode: "0644"
+      notify: Restart meshtastic monitor
 
-    - name: Install logrotate configuration for meshtastic monitor
-      ansible.builtin.copy:
-        dest: /etc/logrotate.d/meshtastic-monitor
-        owner: root
-        group: root
+    - name: Deploy position logger module
+      ansible.builtin.template:
+        src: templates/modules/position_logger.py.j2
+        dest: "{{ modules_path }}/position_logger.py"
+        owner: "{{ monitor_user }}"
+        group: "{{ monitor_user }}"
         mode: "0644"
-        content: |
-          {{ monitor_home }}/telemetry.log
-          {{ monitor_home }}/device.log
-          {{ monitor_home }}/mesh.log
-          {{ monitor_home }}/environment.log {
-              daily
-              rotate 14
-              compress
-              missingok
-              notifempty
-              copytruncate
-          }
-
-    - name: Remove legacy meshtastic-telemetry logrotate config
-      ansible.builtin.file:
-        path: /etc/logrotate.d/meshtastic-telemetry
-        state: absent
+      notify: Restart meshtastic monitor
 
     - name: Install systemd service
       ansible.builtin.copy:
@@ -137,19 +119,28 @@
           Wants=network-online.target
 
           [Service]
+          Type=simple
           User={{ monitor_user }}
           WorkingDirectory={{ monitor_home }}
+
           {% if meshtastic_connection == "serial" %}
           ExecStartPre=/bin/sh -c 'for i in $(seq 1 30); do [ -e "{{ meshtastic_port }}" ] && exit 0; sleep 1; done; echo "Serial device not found"; exit 1'
           {% endif %}
+
           ExecStart={{ venv_path }}/bin/python -u {{ monitor_home }}/monitor.py
+
+          # SAFE: no % formatting here
+          ExecStopPost=/bin/sh -c 'echo STOPPED >> {{ monitor_home }}/device.log'
+
           Restart=always
           RestartSec=5
-          StandardOutput=append:{{ monitor_home }}/mesh.log
-          StandardError=append:{{ monitor_home }}/mesh.log
+
+          StandardOutput=journal
+          StandardError=journal
 
           [Install]
           WantedBy=multi-user.target
+      notify: Restart meshtastic monitor
 
     - name: Reload systemd
       ansible.builtin.systemd:
@@ -160,3 +151,9 @@
         name: meshtastic-monitor
         enabled: true
         state: started
+
+  handlers:
+    - name: Restart meshtastic monitor
+      ansible.builtin.systemd:
+        name: meshtastic-monitor
+        state: restarted

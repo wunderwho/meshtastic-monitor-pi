@@ -1,9 +1,7 @@
-import json
-import os
 import time
-from datetime import datetime
+from modules.common_logger import write, ts
 
-ENABLED = {{ position_enabled | default(True) }}
+ENABLED = {{ position_enabled | default(False) }}
 INTERVAL = {{ position_interval | default(300) }}
 
 last_write = 0
@@ -27,20 +25,25 @@ def handle(packet, base_path, local_node_id):
         return
 
     pos = d.get("position", {})
+    if not pos:
+        return
+
+    dt = ts()
 
     record = {
-        "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "timestamp": dt.isoformat(),
         "type": "position",
-        "latitude": pos.get("latitude"),
-        "longitude": pos.get("longitude"),
-        "altitude": pos.get("altitude"),
-        "sats_in_view": pos.get("satsInView"),
-        "ground_speed": pos.get("groundSpeed"),
-        "ground_track": pos.get("groundTrack")
+        "node_id": node_id,
+        "data": {
+            "latitude": pos.get("latitude"),
+            "longitude": pos.get("longitude"),
+            "altitude": pos.get("altitude"),
+            "sats_in_view": pos.get("satsInView"),
+            "ground_speed": pos.get("groundSpeed"),
+            "ground_track": pos.get("groundTrack")
+        }
     }
 
-    path = os.path.join(base_path, "position.log")
-    with open(path, "a") as f:
-        f.write(json.dumps(record) + "\n")
+    write(base_path, "position", record)
 
     last_write = now

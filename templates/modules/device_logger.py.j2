@@ -1,7 +1,5 @@
-import json
-import os
 import time
-from datetime import datetime
+from modules.common_logger import write, ts
 
 ENABLED = {{ device_enabled | default(True) }}
 INTERVAL = {{ device_interval | default(300) }}
@@ -30,18 +28,21 @@ def handle(packet, base_path, local_node_id):
     if not dm:
         return
 
+    dt = ts()
+
     record = {
-        "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "timestamp": dt.isoformat(),
         "type": "device",
-        "battery": dm.get("batteryLevel"),
-        "voltage": dm.get("voltage"),
-        "uptime_seconds": dm.get("uptimeSeconds"),
-        "channel_utilization": dm.get("channelUtilization"),
-        "air_util_tx": dm.get("airUtilTx")
+        "node_id": node_id,
+        "data": {
+            "battery": dm.get("batteryLevel"),
+            "voltage": dm.get("voltage"),
+            "uptime_seconds": dm.get("uptimeSeconds"),
+            "channel_utilization": dm.get("channelUtilization"),
+            "air_util_tx": dm.get("airUtilTx")
+        }
     }
 
-    path = os.path.join(base_path, "device.log")
-    with open(path, "a") as f:
-        f.write(json.dumps(record) + "\n")
+    write(base_path, "device", record)
 
     last_write = now
