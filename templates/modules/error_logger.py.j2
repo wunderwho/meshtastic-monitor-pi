@@ -1,0 +1,16 @@
+from datetime import datetime
+import traceback
+from modules.common_logger import write
+
+def log(base_path, local_node_id, module, err):
+    record = {
+        "timestamp": datetime.now().astimezone().isoformat(),
+        "type": "error",
+        "node_id": local_node_id,
+        "data": {
+            "module": module,
+            "error": str(err),
+            "traceback": traceback.format_exc()
+        }
+    }
+    write(base_path, "error", record)

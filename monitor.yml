@@ -135,6 +135,15 @@
         mode: "0644"
       notify: Restart meshtastic monitor
 
+    - name: Deploy error logger module
+      ansible.builtin.template:
+        src: templates/modules/error_logger.py.j2
+        dest: "{{ modules_path }}/error_logger.py"
+        owner: "{{ monitor_user }}"
+        group: "{{ monitor_user }}"
+        mode: "0644"
+      notify: Restart meshtastic monitor
+
     - name: Install systemd service
       ansible.builtin.copy:
         dest: /etc/systemd/system/meshtastic-monitor.service
