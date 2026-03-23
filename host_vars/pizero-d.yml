@@ -1,0 +1,30 @@
+monitor_user: "{{ vault_monitor_user }}"
+
+## --- Module Enables ---
+device_enabled: true
+environment_enabled: true
+telemetry_enabled: true
+position_enabled: true
+nodeinfo_enabled: true
+text_enabled: true
+routing_enabled: true
+unknown_enabled: true
+ups_enabled: false
+
+## --- Intervals (seconds) ---
+device_interval: 300
+environment_log_interval: 300
+telemetry_interval: 300
+position_interval: 300
+nodeinfo_interval: 300
+text_interval: 0
+routing_interval: 0
+unknown_interval: 0
+ups_interval: 300
+
+## --- Connection ---
+meshtastic_connection: serial
+meshtastic_port: /dev/ttyACM0
+
+## --- Monitored node ---
+local_node_id: "!49b3d510"
