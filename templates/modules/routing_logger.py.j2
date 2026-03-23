@@ -1,7 +1,11 @@
+import time
 from modules.common_logger import write, ts
 
+CONFIG = {"interval": {{ routing_interval | default(0) }}}
+last_write = {}
+
 def set_config(cfg):
-    pass  # realtime only
+    CONFIG.update(cfg)
 
 def handle(packet, base_path, local_node_id):
     d = packet.get("decoded", {})
@@ -10,6 +14,11 @@ def handle(packet, base_path, local_node_id):
 
     node_id = packet.get("fromId") or packet.get("from")
 
+    now = time.time()
+    last = last_write.get(node_id, 0)
+    if CONFIG["interval"] > 0 and (now - last) < CONFIG["interval"]:
+        return
+
     routing = d.get("routing", {})
 
     record = {
@@ -17,11 +26,11 @@ def handle(packet, base_path, local_node_id):
         "type": "routing",
         "node_id": node_id,
         "data": {
-            "port": d.get("portnum"),
             "request_id": d.get("requestId"),
             "error": routing.get("errorReason"),
-            "raw": d
+            "bitfield": d.get("bitfield")
         }
     }
 
     write(base_path, "routing", record)
+    last_write[node_id] = now
