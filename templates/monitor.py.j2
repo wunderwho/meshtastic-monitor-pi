@@ -20,6 +20,7 @@ TELEMETRY_ENABLED = {{ telemetry_enabled | default(True) }}
 ENVIRONMENT_ENABLED = {{ environment_enabled | default(True) }}
 POSITION_ENABLED = {{ position_enabled | default(False) }}
 NODEINFO_ENABLED = {{ nodeinfo_enabled | default(True) }}
+ROUTING_ENABLED = {{ routing_enabled | default(True) }}
 TEXT_ENABLED = {{ text_enabled | default(True) }}
 UNKNOWN_ENABLED = {{ unknown_enabled | default(True) }}
 
@@ -29,6 +30,7 @@ TELEMETRY_INTERVAL = {{ telemetry_interval | default(300) }}
 ENVIRONMENT_INTERVAL = {{ environment_log_interval | default(300) }}
 POSITION_INTERVAL = {{ position_interval | default(300) }}
 NODEINFO_INTERVAL = {{ nodeinfo_interval | default(300) }}
+ROUTING_INTERVAL = {{ routing_interval | default(0) }}        # 0 = realtime
 TEXT_INTERVAL = {{ text_interval | default(0) }}        # 0 = realtime
 UNKNOWN_INTERVAL = {{ unknown_interval | default(0) }}  # 0 = realtime
 
@@ -57,6 +59,7 @@ MODULES = [
     ("nodeinfo_logger", NODEINFO_ENABLED),
     ("text_logger", TEXT_ENABLED),
     ("position_logger", POSITION_ENABLED),
+    ("routing_logger", ROUTING_ENABLED),
     ("unknown_logger", UNKNOWN_ENABLED),
 ]
 

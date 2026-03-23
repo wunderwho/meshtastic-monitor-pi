@@ -126,6 +126,15 @@
         mode: "0644"
       notify: Restart meshtastic monitor
 
+    - name: Deploy routing logger module
+      ansible.builtin.template:
+        src: templates/modules/routing_logger.py.j2
+        dest: "{{ modules_path }}/routing_logger.py"
+        owner: "{{ monitor_user }}"
+        group: "{{ monitor_user }}"
+        mode: "0644"
+      notify: Restart meshtastic monitor
+
     - name: Deploy unknown logger module
       ansible.builtin.template:
         src: templates/modules/unknown_logger.py.j2

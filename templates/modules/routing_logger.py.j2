@@ -1,0 +1,27 @@
+from modules.common_logger import write, ts
+
+def set_config(cfg):
+    pass  # realtime only
+
+def handle(packet, base_path, local_node_id):
+    d = packet.get("decoded", {})
+    if d.get("portnum") != "ROUTING_APP":
+        return
+
+    node_id = packet.get("fromId") or packet.get("from")
+
+    routing = d.get("routing", {})
+
+    record = {
+        "timestamp": ts().isoformat(),
+        "type": "routing",
+        "node_id": node_id,
+        "data": {
+            "port": d.get("portnum"),
+            "request_id": d.get("requestId"),
+            "error": routing.get("errorReason"),
+            "raw": d
+        }
+    }
+
+    write(base_path, "routing", record)
