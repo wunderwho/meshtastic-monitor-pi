@@ -18,6 +18,7 @@
         LOG_FILES=$(ls {{ monitor_home }}/*.log-$DATE 2>/dev/null | xargs -n1 basename)
         if [ -n "$LOG_FILES" ]; then
             tar -czf {{ monitor_home }}/${DATE}_{{ inventory_hostname }}_logs.tgz -C {{ monitor_home }} $LOG_FILES
+            chown {{ monitor_user }}:{{ monitor_user }} {{ monitor_home }}/${DATE}_{{ inventory_hostname }}_logs.tgz
             rm -f {{ monitor_home }}/*.log-$DATE
         fi
 
@@ -25,6 +26,7 @@
         JSON_FILES=$(ls {{ monitor_home }}/*.json-$DATE 2>/dev/null | xargs -n1 basename)
         if [ -n "$JSON_FILES" ]; then
             tar -czf {{ monitor_home }}/${DATE}_{{ inventory_hostname }}_json.tgz -C {{ monitor_home }} $JSON_FILES
+            chown {{ monitor_user }}:{{ monitor_user }} {{ monitor_home }}/${DATE}_{{ inventory_hostname }}_json.tgz
             rm -f {{ monitor_home }}/*.json-$DATE
         fi
     endscript
