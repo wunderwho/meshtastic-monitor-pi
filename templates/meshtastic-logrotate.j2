@@ -12,7 +12,7 @@
     sharedscripts
 
     postrotate
-        DATE=$(date +%Y%m%d)
+        DATE=$(date -d "yesterday" +%Y%m%d)
 
         # bundle logs
         LOG_FILES=$(ls {{ monitor_home }}/*.log-$DATE 2>/dev/null | xargs -n1 basename)
