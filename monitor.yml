@@ -45,6 +45,14 @@
           - pyqrcode
         virtualenv: "{{ venv_path }}"
 
+    - name: Deploy meshtastic logrotate config
+      ansible.builtin.template:
+        src: templates/meshtastic-logrotate.j2
+        dest: /etc/logrotate.d/meshtastic-monitor
+        owner: root
+        group: root
+        mode: "0644"
+
     - name: Deploy monitor core
       ansible.builtin.template:
         src: templates/monitor.py.j2

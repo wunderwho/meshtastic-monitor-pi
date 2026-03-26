@@ -1,12 +1,31 @@
-{{ monitor_home }}/telemetry.log
-{{ monitor_home }}/device.log
-{{ monitor_home }}/mesh.log
-{{ monitor_home }}/environment.log
-{{ monitor_home }}/position.log {
+{{ monitor_home }}/*.log
+{{ monitor_home }}/*.json {
     daily
-    rotate 14
-    compress
+    rotate 1
+    dateext
+    dateformat -%Y%m%d
     missingok
     notifempty
     copytruncate
+    compress
+    delaycompress
+    sharedscripts
+
+    postrotate
+        DATE=$(date +%Y%m%d)
+
+        # bundle logs
+        LOG_FILES=$(ls {{ monitor_home }}/*.log-$DATE 2>/dev/null)
+        if [ -n "$LOG_FILES" ]; then
+            tar -czf {{ monitor_home }}/${DATE}_{{ inventory_hostname }}_logs.tgz $LOG_FILES
+            rm -f $LOG_FILES
+        fi
+
+        # bundle json
+        JSON_FILES=$(ls {{ monitor_home }}/*.json-$DATE 2>/dev/null)
+        if [ -n "$JSON_FILES" ]; then
+            tar -czf {{ monitor_home }}/${DATE}_{{ inventory_hostname }}_json.tgz $JSON_FILES
+            rm -f $JSON_FILES
+        fi
+    endscript
 }
